@@ -1,0 +1,164 @@
+//--------------------------------------------------------------------------------------------------
+// 
+///	@PROJECT	@APPLICATION_NAME@
+/// @BRIEF		application information
+///	@DETAILS	
+//
+//--------------------------------------------------------------------------------------------------
+//
+// ATTRIBUTION:
+// Parts of this work have been adapted from: 
+//
+//--------------------------------------------------------------------------------------------------
+// 
+// Copyright (c) 2020 Nic Holthaus. All Rights Reserved.
+// 
+//--------------------------------------------------------------------------------------------------
+//
+//	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+//	XXXX																						XXXX
+//	XXXX						WARNING: THIS IS A GENERATED FILE								XXXX
+//	XXXX						ABANDON ALL HOPE YE WHO EDIT HERE								XXXX
+//	XXXX																						XXXX
+//	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX	
+// 
+//--------------------------------------------------------------------------------------------------
+
+#include <appinfo.h>
+#include <gitInfo.h>
+
+#include <QString>
+#include <QStandardPaths>
+#include <QDateTime>
+#include <QSysInfo>
+
+//--------------------------------------------------------------------------------------------------
+// CONSTANT STRINGS
+//--------------------------------------------------------------------------------------------------
+
+namespace logerr
+{
+	// Application Info
+	const QString name(gitRepo);
+	const QString organization("@APPLICATION_ORGANIZATION@");
+	const QString organizationDomain(gitOrigin);
+	const QString version(gitTag + QString('.') + gitCommitShort + gitDirtyString);
+
+	// Build Host Info
+	const QString buildHostname("@BUILD_HOSTNAME@");
+	const QString buildOSName("@CMAKE_HOST_SYSTEM_NAME@");
+	const QString buildOSVersion("@CMAKE_HOST_SYSTEM_VERSION@");
+	const QString buildOSProcessor("@CMAKE_HOST_SYSTEM_PROCESSOR@");
+	const QString cmakeVersion("@CMAKE_VERSION@");
+	const QString compilerName("@CMAKE_CXX_COMPILER_ID@");
+	const QString compilerVersion("@CMAKE_CXX_COMPILER_VERSION@");
+	const QString qtVersion("@QT_VERSION@");
+
+	// Runtime Host Info
+	const QString hostCPUArchitecture(QSysInfo::currentCpuArchitecture());
+	const QString hostKernelType(QSysInfo::kernelType());
+	const QString hostKernelVersion(QSysInfo::kernelVersion());
+	const QString hostName(QSysInfo::machineHostName());
+	const QString hostUniqueID(QSysInfo::machineUniqueId());
+	const QString hostPrettyProductName(QSysInfo::prettyProductName());
+	const QString hostProductType(QSysInfo::productType());
+	const QString hostProductVersion(QSysInfo::productVersion());
+
+	// Current Application Instance Info
+	const QDateTime applicationStartTime = QDateTime::currentDateTime();
+
+	const QString systemDetails = QString("APPLICATION INFO:\n\n")
+									.append("    ").append("Application Name:        ").append(name).append('\n')
+									.append("    ").append("Application Creator:     ").append(organization).append('\n')
+									.append("    ").append("Appliation URL:          ").append(organizationDomain).append('\n')
+									.append("    ").append("Application Version:     ").append(version).append('\n')
+									.append('\n')
+									.append("VERSION INFO:\n\n")
+									.append("    ").append("Git Origin:              ").append(gitOrigin).append('\n')
+									.append("    ").append("Git Repository:          ").append(gitRepo).append('\n')
+									.append("    ").append("Git Branch:              ").append(gitBranch).append('\n')
+									.append("    ").append("Git Commit:              ").append(gitCommitLong).append('\n')
+									.append("    ").append("Local Changes (dirty):   ").append(gitDirty).append('\n')
+									.append("    ").append("Git Tag:                 ").append(gitTag).append('\n')
+									.append("    ").append("Git Commit (short):      ").append(gitCommitShort).append('\n')
+									.append("    ").append("Git Directory:           ").append(gitDirectory).append('\n')
+									.append("    ").append("Git User:                ").append(gitUser).append('\n')
+									.append("    ").append("Git Email:               ").append(gitEmail).append('\n')
+									.append('\n')
+									.append("BUILD INFO:\n\n")
+									.append("    ").append("Build Hostname:          ").append(buildHostname).append('\n')
+									.append("    ").append("Build OS:                ").append(buildOSName).append('\n')
+									.append("    ").append("Build OS Version:        ").append(buildOSVersion).append('\n')
+									.append("    ").append("Build Processor:         ").append(buildOSProcessor).append('\n')
+									.append("    ").append("Compiler Name:           ").append(compilerName).append('\n')
+									.append("    ").append("Compiler Version:        ").append(compilerVersion).append('\n')
+									.append("    ").append("CMake Version:           ").append(cmakeVersion).append('\n')
+									.append("    ").append("Qt Version:              ").append(qtVersion).append('\n')
+									.append('\n')
+									.append("HOST INFO:\n\n")
+									.append("    ").append("Host Name:               ").append(hostName).append('\n')
+									.append("    ").append("Host Unique ID:          ").append(hostUniqueID).append('\n')
+									.append("    ").append("Host Kernel Type:        ").append(hostKernelType).append('\n')
+									.append("    ").append("Host Kernel Version:     ").append(hostKernelVersion).append('\n')
+									.append("    ").append("Host CPU Arch:           ").append(hostCPUArchitecture).append('\n')
+									.append("    ").append("Host OS Name:            ").append(hostPrettyProductName).append('\n')
+									.append("    ").append("Host OS Type:            ").append(hostProductType).append('\n')
+									.append("    ").append("Host OS Version:         ").append(hostProductVersion).append('\n')
+									.append('\n');
+}
+
+//--------------------------------------------------------------------------------------------------
+//	ACCESSOR FUNCTIONS
+//--------------------------------------------------------------------------------------------------
+
+// Application Info
+QString APPINFO::name()						{ return logerr::name; };
+QString APPINFO::organization()				{ return logerr::organization; };
+QString APPINFO::organizationDomain()		{ return logerr::organizationDomain; };
+QString APPINFO::version()					{ return logerr::version; };
+
+// Git Info
+QString APPINFO::gitBranch()				{ return logerr::gitBranch; };
+QString APPINFO::gitCommitShort()			{ return logerr::gitCommitShort; };
+QString APPINFO::gitCommitLong()			{ return logerr::gitCommitLong; };
+QString APPINFO::gitTag()					{ return logerr::gitTag; };
+QString APPINFO::gitDirty()					{ return logerr::gitDirty; };
+QString APPINFO::gitOrigin()				{ return logerr::gitOrigin; };
+QString APPINFO::gitDirectory()				{ return logerr::gitDirectory; };
+QString APPINFO::gitRepo()					{ return logerr::gitRepo; };
+QString APPINFO::gitUser()					{ return logerr::gitUser; };
+QString APPINFO::gitEmail()					{ return logerr::gitEmail; };
+
+// Build Host Info
+QString APPINFO::buildHostname()			{ return logerr::buildHostname; };
+QString APPINFO::buildOSName()				{ return logerr::buildOSName; };
+QString APPINFO::buildOSVersion()			{ return logerr::buildOSVersion; };
+QString APPINFO::buildOSProcessor()			{ return logerr::buildOSProcessor; };
+QString APPINFO::cmakeVersion()				{ return logerr::cmakeVersion; };
+QString APPINFO::compilerName()				{ return logerr::compilerName; };
+QString APPINFO::compilerVersion()			{ return logerr::compilerVersion; };
+QString APPINFO::qtVersion()				{ return logerr::qtVersion; };
+
+// Runtime Host Info
+QString APPINFO::hostCPUArchitecture()		{ return logerr::hostCPUArchitecture; };
+QString APPINFO::hostKernelType()			{ return logerr::hostKernelType; };
+QString APPINFO::hostKernelVersion()		{ return logerr::hostKernelVersion; };
+QString APPINFO::hostName()					{ return logerr::hostName; };
+QString APPINFO::hostUniqueID()				{ return logerr::hostUniqueID; };
+QString APPINFO::hostPrettyProductName()	{ return logerr::hostPrettyProductName; };
+QString APPINFO::hostProductType()			{ return logerr::hostProductType; };
+QString APPINFO::hostProductVersion()		{ return logerr::hostProductVersion; };
+
+// Path Info
+QString APPINFO::appDataDir()				{ return QStandardPaths::standardLocations(QStandardPaths::AppDataLocation).first(); };
+QString APPINFO::logDir()					{ return appDataDir() + "/logs/"; };
+QString APPINFO::crashDumpDir()				{ return appDataDir() + "/crashdumps/"; };
+QString APPINFO::documentsDir()				{ return QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation).first(); };
+QString APPINFO::tempDir()					{ return QStandardPaths::standardLocations(QStandardPaths::TempLocation).first(); };
+QString APPINFO::configDir()				{ return QStandardPaths::standardLocations(QStandardPaths::ConfigLocation).first(); };
+
+// Current Application Instance Info
+QDateTime APPINFO::applicationStartTime()	{ return logerr::applicationStartTime; };
+
+// Full System Details
+QString APPINFO::systemDetails()	{ return logerr::systemDetails; };

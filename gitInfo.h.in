@@ -1,0 +1,48 @@
+//--------------------------------------------------------------------------------------------------
+// 
+///	@PROJECT	@APPLICATION_NAME@
+/// @BRIEF		git information
+///	@DETAILS	
+//
+//--------------------------------------------------------------------------------------------------
+//
+// ATTRIBUTION:
+// Parts of this work have been adapted from: 
+//
+//--------------------------------------------------------------------------------------------------
+// 
+// Copyright (c) 2020 Nic Holthaus. All Rights Reserved.
+// 
+//--------------------------------------------------------------------------------------------------
+//
+//	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+//	XXXX																						XXXX
+//	XXXX						WARNING: THIS IS A GENERATED FILE								XXXX
+//	XXXX						ABANDON ALL HOPE YE WHO EDIT HERE								XXXX
+//	XXXX																						XXXX
+//	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX	
+// 
+//--------------------------------------------------------------------------------------------------
+
+#ifndef gitinfo_h__
+#define gitinfo_h__
+
+#include <QString>
+
+namespace logerr
+{
+	// Git Info
+	const QString gitBranch("@GIT_BRANCH@");
+	const QString gitCommitShort("@GIT_COMMIT_SHORT@");
+	const QString gitCommitLong("@GIT_COMMIT_LONG@");
+	const QString gitTag("@GIT_TAG@");
+	const QString gitDirty("@GIT_DIRTY_FLAG@");
+	const QString gitDirtyString("@GIT_DIRTY_STRING@");
+	const QString gitOrigin("@GIT_ORIGIN@");
+	const QString gitDirectory("@GIT_DIRECTORY@");
+	const QString gitRepo("@GIT_REPO@");
+	const QString gitUser("@GIT_USER@");
+	const QString gitEmail("@GIT_EMAIL@");
+}
+
+#endif // gitinfo_h__
