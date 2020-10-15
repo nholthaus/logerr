@@ -1,0 +1,272 @@
+//--------------------------------------------------------------------------------------------------
+//
+///	@PROJECT	@APPLICATION_NAME@
+/// @BRIEF		application information
+///	@DETAILS
+//
+//--------------------------------------------------------------------------------------------------
+//
+// ATTRIBUTION:
+// Parts of this work have been adapted from:
+//
+//--------------------------------------------------------------------------------------------------
+//
+// Copyright (c) 2020 Nic Holthaus. All Rights Reserved.
+//
+//--------------------------------------------------------------------------------------------------
+//
+//	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+//	XXXX																						XXXX
+//	XXXX						WARNING: THIS IS A GENERATED FILE								XXXX
+//	XXXX						ABANDON ALL HOPE YE WHO EDIT HERE								XXXX
+//	XXXX																						XXXX
+//	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+//
+//--------------------------------------------------------------------------------------------------
+
+#include <qappinfo.h>
+#include <gitinfo.h>
+
+#include <QDateTime>
+#include <QStandardPaths>
+#include <QString>
+#include <QSysInfo>
+
+#if QT_VERSION > QT_VERSION_CHECK(5, 11, 0)
+#define MACHINE_UNIQUE_ID
+#endif
+
+using namespace std;
+
+//--------------------------------------------------------------------------------------------------
+// CONSTANT STRINGS
+//--------------------------------------------------------------------------------------------------
+
+namespace QAPPINFO::detail
+{
+	// Application Info
+	const QString name(QString::fromStdString(git::repo));
+	const QString organization("@APPLICATION_ORGANIZATION@");
+	const QString organizationDomain(QString::fromStdString(git::origin);
+	const QString version(QString::fromStdString(git::tag) + '.' + QString::fromStdString(git::commitShort) + QString::fromStdString(git::dirtyString));
+
+	// Build Host Info
+	const QString buildHostname("@BUILD_HOSTNAME@");
+	const QString buildOSName("@CMAKE_HOST_SYSTEM_NAME@");
+	const QString buildOSVersion("@CMAKE_HOST_SYSTEM_VERSION@");
+	const QString buildOSProcessor("@CMAKE_HOST_SYSTEM_PROCESSOR@");
+	const QString cmakeVersion("@CMAKE_VERSION@");
+	const QString compilerName("@CMAKE_CXX_COMPILER_ID@");
+	const QString compilerVersion("@CMAKE_CXX_COMPILER_VERSION@");
+	const QString qtVersion("@QT_VERSION@");
+
+	// Runtime Host Info
+	const QString hostCPUArchitecture(QSysInfo::currentCpuArchitecture());
+	const QString hostKernelType(QSysInfo::kernelType());
+	const QString hostKernelVersion(QSysInfo::kernelVersion());
+	const QString hostName(QSysInfo::machineHostName());
+#ifdef MACHINE_UNIQUE_ID
+	const QString hostUniqueID(QSysInfo::machineUniqueId());
+#endif
+	const QString hostPrettyProductName(QSysInfo::prettyProductName());
+	const QString hostProductType(QSysInfo::productType());
+	const QString hostProductVersion(QSysInfo::productVersion());
+
+	// Current Application Instance Info
+	const QDateTime applicationStartTime = QDateTime::currentDateTime();
+
+	const QString systemDetails = QString("APPLICATION INFO:\n\n")
+	                                      .append("    ")
+	                                      .append("Application Name:        ")
+	                                      .append(name)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Application Creator:     ")
+	                                      .append(organization)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Appliation URL:          ")
+	                                      .append(organizationDomain)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Application Version:     ")
+	                                      .append(version)
+	                                      .append('\n')
+	                                      .append('\n')
+	                                      .append("VERSION INFO:\n\n")
+	                                      .append("    ")
+	                                      .append("Git Origin:              ")
+	                                      .append(QString::fromStdString(git::origin))
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Git Repository:          ")
+	                                      .append(QString::fromStdString(git::repo))
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Git Branch:              ")
+	                                      .append(QString::fromStdString(git::branch))
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Git Commit:              ")
+	                                      .append(QString::fromStdString(git::commitLong))
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Local Changes (dirty):   ")
+	                                      .append(QString::fromStdString(git::dirty))
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Git Tag:                 ")
+	                                      .append(QString::fromStdString(git::tag))
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Git Commit (short):      ")
+	                                      .append(QString::fromStdString(git::commitShort))
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Git Directory:           ")
+	                                      .append(QString::fromStdString(git::directory))
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Git User:                ")
+	                                      .append(QString::fromStdString(git::user))
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Git Email:               ")
+	                                      .append(QString::fromStdString(git::email))
+	                                      .append('\n')
+	                                      .append('\n')
+	                                      .append("BUILD INFO:\n\n")
+	                                      .append("    ")
+	                                      .append("Build Hostname:          ")
+	                                      .append(buildHostname)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Build OS:                ")
+	                                      .append(buildOSName)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Build OS Version:        ")
+	                                      .append(buildOSVersion)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Build Processor:         ")
+	                                      .append(buildOSProcessor)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Compiler Name:           ")
+	                                      .append(compilerName)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Compiler Version:        ")
+	                                      .append(compilerVersion)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("CMake Version:           ")
+	                                      .append(cmakeVersion)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Qt Version:              ")
+	                                      .append(qtVersion)
+	                                      .append('\n')
+	                                      .append('\n')
+	                                      .append("HOST INFO:\n\n")
+	                                      .append("    ")
+	                                      .append("Host Name:               ")
+	                                      .append(hostName)
+	                                      .append('\n')
+#ifdef MACHINE_UNIQUE_ID
+	                                      .append("    ")
+	                                      .append("Host Unique ID:          ")
+	                                      .append(hostUniqueID)
+	                                      .append('\n')
+#endif
+	                                      .append("    ")
+	                                      .append("Host Kernel Type:        ")
+	                                      .append(hostKernelType)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Host Kernel Version:     ")
+	                                      .append(hostKernelVersion)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Host CPU Arch:           ")
+	                                      .append(hostCPUArchitecture)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Host OS Name:            ")
+	                                      .append(hostPrettyProductName)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Host OS Type:            ")
+	                                      .append(hostProductType)
+	                                      .append('\n')
+	                                      .append("    ")
+	                                      .append("Host OS Version:         ")
+	                                      .append(hostProductVersion)
+	                                      .append('\n')
+	                                      .append('\n');
+}    // namespace detail
+
+//--------------------------------------------------------------------------------------------------
+//	ACCESSOR FUNCTIONS -- appQt
+//--------------------------------------------------------------------------------------------------
+
+// Application Info
+QString QAPPINFO::name() { return detail::name; }
+QString QAPPINFO::organization() { return detail::organization; }
+QString QAPPINFO::organizationDomain() { return detail::organizationDomain; }
+QString QAPPINFO::version() { return detail::version; }
+
+// Git Info
+QString QAPPINFO::gitBranch() { return QString::fromStdString(git::branch); }
+QString QAPPINFO::gitCommitShort() { return QString::fromStdString(git::commitShort); }
+QString QAPPINFO::gitCommitLong() { return QString::fromStdString(git::commitLong); }
+QString QAPPINFO::gitTag() { return QString::fromStdString(git::tag); }
+QString QAPPINFO::gitDirty() { return QString::fromStdString(git::dirty); }
+QString QAPPINFO::gitOrigin() { return QString::fromStdString(git::origin); }
+QString QAPPINFO::gitDirectory() { return QString::fromStdString(git::directory); }
+QString QAPPINFO::gitRepo() { return QString::fromStdString(git::repo); }
+QString QAPPINFO::gitUser() { return QString::fromStdString(git::user); }
+QString QAPPINFO::gitEmail() { return QString::fromStdString(git::email); }
+
+// Build Host Info
+QString QAPPINFO::buildHostname() { return detail::buildHostname; }
+QString QAPPINFO::buildOSName() { return detail::buildOSName; }
+QString QAPPINFO::buildOSVersion() { return detail::buildOSVersion; }
+QString QAPPINFO::buildOSProcessor() { return detail::buildOSProcessor; }
+QString QAPPINFO::cmakeVersion() { return detail::cmakeVersion; }
+QString QAPPINFO::compilerName() { return detail::compilerName; }
+QString QAPPINFO::compilerVersion() { return detail::compilerVersion; }
+QString QAPPINFO::qtVersion() { return detail::qtVersion; }
+
+// Runtime Host Info
+QString QAPPINFO::hostCPUArchitecture() { return detail::hostCPUArchitecture; }
+QString QAPPINFO::hostKernelType() { return detail::hostKernelType; }
+QString QAPPINFO::hostKernelVersion() { return detail::hostKernelVersion; }
+QString QAPPINFO::hostName() { return detail::hostName; }
+#ifdef MACHINE_UNIQUE_ID
+QString QAPPINFO::hostUniqueID()
+{
+	return detail::hostUniqueID;
+}
+#endif
+QString QAPPINFO::hostPrettyProductName()
+{
+	return detail::hostPrettyProductName;
+}
+QString QAPPINFO::hostProductType() { return detail::hostProductType; }
+QString QAPPINFO::hostProductVersion() { return detail::hostProductVersion; }
+
+// Path Info
+QString QAPPINFO::appDataDir() { return QStandardPaths::standardLocations(QStandardPaths::AppDataLocation).first(); }
+QString QAPPINFO::logDir() { return appDataDir() + "/logs/"; }
+QString QAPPINFO::crashDumpDir() { return appDataDir() + "/crashdumps/"; }
+QString QAPPINFO::documentsDir() { return QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation).first(); }
+QString QAPPINFO::tempDir() { return QStandardPaths::standardLocations(QStandardPaths::TempLocation).first(); }
+QString QAPPINFO::configDir() { return QStandardPaths::standardLocations(QStandardPaths::ConfigLocation).first(); }
+
+// Current Application Instance Info
+QDateTime QAPPINFO::applicationStartTime() { return detail::applicationStartTime; }
+
+// Full System Details
+QString QAPPINFO::systemDetails() { return detail::systemDetails; }

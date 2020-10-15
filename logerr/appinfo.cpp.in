@@ -1,0 +1,338 @@
+//--------------------------------------------------------------------------------------------------
+//
+///	@PROJECT	@APPLICATION_NAME@
+/// @BRIEF		application information
+///	@DETAILS
+//
+//--------------------------------------------------------------------------------------------------
+//
+// ATTRIBUTION:
+// Parts of this work have been adapted from:
+//
+//--------------------------------------------------------------------------------------------------
+//
+// Copyright (c) 2020 Nic Holthaus. All Rights Reserved.
+//
+//--------------------------------------------------------------------------------------------------
+//
+//	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+//	XXXX																						XXXX
+//	XXXX						WARNING: THIS IS A GENERATED FILE								XXXX
+//	XXXX						ABANDON ALL HOPE YE WHO EDIT HERE								XXXX
+//	XXXX																						XXXX
+//	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+//
+//--------------------------------------------------------------------------------------------------
+
+//----------------------------
+//  CONSTANTS
+//----------------------------
+
+// clang-format off
+constexpr bool IS_WIN   = false;
+constexpr bool IS_MAC   = false;
+constexpr bool IS_LINUX = true;
+// clang-format on
+
+//----------------------------
+//  INCLUDES
+//----------------------------
+
+#include <appinfo.h>
+#include <gitinfo.h>
+#include <timestampLite.h>
+
+#include <algorithm>
+#include <cstdlib>
+
+#if defined __has_include
+#if __has_include(<unistd.h>)
+#include <unistd.h>
+#endif
+#if __has_include(<winsock.h>)
+#include <winsock.h>
+#endif
+#endif
+
+using namespace std;
+
+//--------------------------------------------------------------------------------------------------
+// CONSTANT STRINGS
+//--------------------------------------------------------------------------------------------------
+
+namespace APPINFO::detail
+{
+	// Application Info
+	const string name(git::repo);
+	const string organization("@APPLICATION_ORGANIZATION@");
+	const string organizationDomain(git::origin);
+	const string version(git::tag + '.' + git::commitShort + git::dirtyString);
+
+	// Build Host Info
+	const string buildHostname("@BUILD_HOSTNAME@");
+	const string buildOSName("@CMAKE_HOST_SYSTEM_NAME@");
+	const string buildOSVersion("@CMAKE_HOST_SYSTEM_VERSION@");
+	const string buildOSProcessor("@CMAKE_HOST_SYSTEM_PROCESSOR@");
+	const string cmakeVersion("@CMAKE_VERSION@");
+	const string compilerName("@CMAKE_CXX_COMPILER_ID@");
+	const string compilerVersion("@CMAKE_CXX_COMPILER_VERSION@");
+	const string qtVersion("@QT_VERSION@");
+
+	// Current Application Instance Info
+	const string applicationStartTime = TimestampLite();
+
+	const string systemDetails = string("APPLICATION INFO:\n\n")
+	                           + "    "
+	                           + "Application Name:        "
+	                           + APPINFO::name()
+	                           + '\n'
+	                           + "    "
+	                           + "Application Creator:     "
+	                           + APPINFO::organization()
+	                           + '\n'
+	                           + "    "
+	                           + "Application URL:          "
+	                           + APPINFO::organizationDomain()
+	                           + '\n'
+	                           + "    "
+	                           + "Application Version:     "
+	                           + APPINFO::version()
+	                           + '\n'
+	                           + '\n'
+	                           + "VERSION INFO:\n\n"
+	                           + "    "
+	                           + "Git Origin:              "
+	                           + git::origin
+	                           + '\n'
+	                           + "    "
+	                           + "Git Repository:          "
+	                           + git::repo
+	                           + '\n'
+	                           + "    "
+	                           + "Git Branch:              "
+	                           + git::branch
+	                           + '\n'
+	                           + "    "
+	                           + "Git Commit:              "
+	                           + git::commitLong
+	                           + '\n'
+	                           + "    "
+	                           + "Local Changes (dirty):   "
+	                           + git::dirty
+	                           + '\n'
+	                           + "    "
+	                           + "Git Tag:                 "
+	                           + git::tag
+	                           + '\n'
+	                           + "    "
+	                           + "Git Commit (short):      "
+	                           + git::commitShort
+	                           + '\n'
+	                           + "    "
+	                           + "Git Directory:           "
+	                           + git::directory
+	                           + '\n'
+	                           + "    "
+	                           + "Git User:                "
+	                           + git::user
+	                           + '\n'
+	                           + "    "
+	                           + "Git Email:               "
+	                           + git::email
+	                           + '\n'
+	                           + '\n'
+	                           + "BUILD INFO:\n\n"
+	                           + "    "
+	                           + "Build Hostname:          "
+	                           + buildHostname
+	                           + '\n'
+	                           + "    "
+	                           + "Build OS:                "
+	                           + buildOSName
+	                           + '\n'
+	                           + "    "
+	                           + "Build OS Version:        "
+	                           + buildOSVersion
+	                           + '\n'
+	                           + "    "
+	                           + "Build Processor:         "
+	                           + buildOSProcessor
+	                           + '\n'
+	                           + "    "
+	                           + "Compiler Name:           "
+	                           + compilerName
+	                           + '\n'
+	                           + "    "
+	                           + "Compiler Version:        "
+	                           + compilerVersion
+	                           + '\n'
+	                           + "    "
+	                           + "CMake Version:           "
+	                           + cmakeVersion
+	                           + '\n'
+	                           + "    "
+	                           + "Qt Version:              "
+	                           + qtVersion
+	                           + '\n'
+	                           + '\n'
+	                           + "HOST INFO:\n\n"
+	                           + "    "
+	                           + "Host Name:               "
+	                           + hostName()
+	                           + '\n'
+#ifdef MACHINE_UNIQUE_ID
+
+	                           + "    "
+	                           + "Host Unique ID:          "
+	                           + hostUniqueID
+	                           + '\n'
+#endif
+
+	                           + "    "
+	                           + "Host Kernel Type:        "
+	                           + hostKernelType()
+	                           + '\n'
+	                           + "    "
+	                           + "Host Kernel Version:     "
+	                           + hostKernelVersion()
+	                           + '\n'
+	                           + "    "
+
+	                           + "Host CPU Arch:           "
+	                           + hostCPUArchitecture()
+	                           + '\n'
+	                           + "    "
+	                           + "Host OS Name:            "
+	                           + hostPrettyProductName()
+	                           + '\n'
+	                           + "    "
+
+	                           + "Host OS Type:            "
+	                           + hostProductType()
+	                           + '\n'
+	                           + "    "
+	                           + "Host OS Version:         "
+	                           + hostProductVersion()
+	                           + '\n'
+	                           + '\n';
+}    // namespace APPINFO::detail
+
+//--------------------------------------------------------------------------------------------------
+//	ACCESSOR FUNCTIONS - app
+//--------------------------------------------------------------------------------------------------
+
+// Application Info
+string APPINFO::name() { return detail::name; }
+string APPINFO::organization() { return detail::organization; }
+string APPINFO::organizationDomain() { return detail::organizationDomain; }
+string APPINFO::version() { return detail::version; }
+
+// Git Info
+string APPINFO::gitBranch() { return git::branch; }
+string APPINFO::gitCommitShort() { return git::commitShort; }
+string APPINFO::gitCommitLong() { return git::commitLong; }
+string APPINFO::gitTag() { return git::tag; }
+string APPINFO::gitDirty() { return git::dirty; }
+string APPINFO::gitOrigin() { return git::origin; }
+string APPINFO::gitDirectory() { return git::directory; }
+string APPINFO::gitRepo() { return git::repo; }
+string APPINFO::gitUser() { return git::user; }
+string APPINFO::gitEmail() { return git::email; }
+
+// Build Host Info
+string APPINFO::buildHostname() { return detail::buildHostname; }
+string APPINFO::buildOSName() { return detail::buildOSName; }
+string APPINFO::buildOSVersion() { return detail::buildOSVersion; }
+string APPINFO::buildOSProcessor() { return detail::buildOSProcessor; }
+string APPINFO::cmakeVersion() { return detail::cmakeVersion; }
+string APPINFO::compilerName() { return detail::compilerName; }
+string APPINFO::compilerVersion() { return detail::compilerVersion; }
+string APPINFO::qtVersion() { return detail::qtVersion.empty() ? string("N/A") : detail::qtVersion; }
+
+// Runtime Host Info
+string APPINFO::hostCPUArchitecture() { return sizeof(void*) == 8 ? "x64" : "x86"; }
+string APPINFO::hostKernelType() { return "Unknown"; }
+string APPINFO::hostKernelVersion() { return "Unknown"; }
+string APPINFO::hostName()
+{
+	char hostname[1024];
+	gethostname(hostname, sizeof(hostname));
+	return hostname;
+}
+
+string APPINFO::hostUniqueID()
+{
+	return hostName();
+}
+
+string APPINFO::hostPrettyProductName()
+{
+	return hostProductType();
+}
+string APPINFO::hostProductType()
+{
+	if constexpr (IS_LINUX)
+		return "Linux";
+	else if constexpr (IS_MAC)
+		return "macOS";
+	else if constexpr (IS_WIN)
+		return "Windows";
+}
+string APPINFO::hostProductVersion()
+{
+	return "Unknown";
+}
+
+// Path Info
+string APPINFO::appDataDir()
+{
+	if constexpr (IS_LINUX)
+		return std::string("~/.local/share/").append(name()).append("/");
+	else if constexpr (IS_MAC)
+		return std::string("~/Library/Application Support/").append(name()).append("/");
+	else if constexpr (IS_WIN)
+	{
+		std::string APPDATA = getenv("APPDATA");
+		std::replace(APPDATA.begin(), APPDATA.end(), '\\', '/');
+		return std::string(APPDATA).append("/").append(name()).append("/");
+	}
+}
+string APPINFO::logDir()
+{
+	return appDataDir() + "/logs/";
+}
+string APPINFO::crashDumpDir()
+{
+	return appDataDir() + "/crashdumps/";
+}
+string APPINFO::documentsDir()
+{
+	if constexpr (IS_LINUX || IS_MAC)
+		return "~/Documents/";
+	else if constexpr (IS_WIN)
+		return std::string("C:/Users/").append(getenv("USER")).append("/Documents/");
+}
+string APPINFO::tempDir()
+{
+	if constexpr (IS_LINUX)
+		return "/tmp";
+	else if constexpr (IS_MAC)
+		return "~/tmp";
+	else if constexpr (IS_WIN)
+		return std::string(getenv("LOCALAPPDATA")).append("/Temp/");
+}
+string APPINFO::configDir()
+{
+	if constexpr (IS_LINUX)
+		return "~/.config/";
+	else if constexpr (IS_MAC)
+		return "~/Library/Preferences/";
+	else if constexpr (IS_WIN)
+		return std::string(getenv("LOCALAPPDATA")).append(name());
+}
+
+// Current Application Instance Info
+string APPINFO::applicationStartTime() { return detail::applicationStartTime; }
+
+// Full System Details
+string APPINFO::systemDetails() { return detail::systemDetails; }

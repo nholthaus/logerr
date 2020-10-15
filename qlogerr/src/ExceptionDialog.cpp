@@ -2,6 +2,7 @@
 //	INCLUDES
 //------------------------------
 
+#include <qappinfo.h>
 #include <ExceptionDialog.h>
 #include <logerr>
 
@@ -24,10 +25,10 @@
 ExceptionDialog::ExceptionDialog(const StackTraceException& exception, bool fatal, QWidget* parent /*= nullptr*/)
 	: QDialog(parent)
 	, m_fatal(fatal)
-	, m_errorMessage(exception.errorMessage())
-	, m_errorDetails(exception.errorDetails())
-	, m_filename(exception.filename())
-	, m_function(exception.function())
+	, m_errorMessage(QString::fromStdString(exception.errorMessage()))
+	, m_errorDetails(QString::fromStdString(exception.errorDetails()))
+	, m_filename(QString::fromStdString(exception.filename()))
+	, m_function(QString::fromStdString(exception.function()))
 	, m_line(QString::number(exception.line()))
 	, m_errorIcon(new QLabel(this))
 	, m_errorMessageLabel(new QLabel(m_errorMessage.prepend("ERROR: "), this))
@@ -57,7 +58,7 @@ ExceptionDialog::ExceptionDialog(const StackTraceException& exception, bool fata
 ExceptionDialog::ExceptionDialog(const std::exception& exception, bool fatal /*= false*/, QWidget* parent /*= nullptr*/)
 	: QDialog(parent)
 	, m_fatal(fatal)
-	, m_errorMessage(QString("An unrecoverable error has occurred.\n").append(APPINFO::name()).append(" must now exit."))
+	, m_errorMessage(QString("An unrecoverable error has occurred.\n").append(QAPPINFO::name()).append(" must now exit."))
 	, m_errorDetails(exception.what())
 	, m_filename("")
 	, m_function("")
@@ -97,7 +98,7 @@ ExceptionDialog::ExceptionDialog(const std::exception& exception, bool fatal /*=
 ExceptionDialog::ExceptionDialog(const char* msg, bool fatal /*= false*/, QWidget* parent /*= nullptr*/)
 	: QDialog(parent)
 	, m_fatal(fatal)
-	, m_errorMessage(QString("An unrecoverable error has occurred.\n").append(APPINFO::name()).append(" must now exit."))
+	, m_errorMessage(QString("An unrecoverable error has occurred.\n").append(QAPPINFO::name()).append(" must now exit."))
 	, m_errorDetails(msg)
 	, m_filename("")
 	, m_function("")

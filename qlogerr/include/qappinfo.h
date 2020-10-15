@@ -1,18 +1,18 @@
 //--------------------------------------------------------------------------------------------------
-// 
+//
 ///	@PROJECT	@APPLICATION_NAME@
 /// @BRIEF		application information
-///	@DETAILS	
+///	@DETAILS    For use with Qt applications
 //
 //--------------------------------------------------------------------------------------------------
 //
 // ATTRIBUTION:
-// Parts of this work have been adapted from: 
+// Parts of this work have been adapted from:
 //
 //--------------------------------------------------------------------------------------------------
-// 
+//
 // Copyright (c) 2020 Nic Holthaus. All Rights Reserved.
-// 
+//
 //--------------------------------------------------------------------------------------------------
 //
 //	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -20,17 +20,24 @@
 //	XXXX						WARNING: THIS IS A GENERATED FILE								XXXX
 //	XXXX						ABANDON ALL HOPE YE WHO EDIT HERE								XXXX
 //	XXXX																						XXXX
-//	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX	
-// 
+//	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+//
 //--------------------------------------------------------------------------------------------------
 
-#ifndef appinfo_h__
-#define appinfo_h__
+#ifndef LOGERR_QAPPINFO_H
+#define LOGERR_QAPPINFO_H
 
-#include <QString>
-#include <QDateTime>
+//----------------------------
+//  FORWARD DECLARATIONS
+//----------------------------
 
-namespace APPINFO
+class QDateTime;
+class QString;
+
+//----------------------------------------------------------------------------------------------------------------------
+//      NAMESPACE: QAPPINFO
+//----------------------------------------------------------------------------------------------------------------------
+namespace QAPPINFO
 {
 	// Application Info
 	QString name();
@@ -83,6 +90,6 @@ namespace APPINFO
 
 	// Full System Details
 	QString systemDetails();
-}
+}    // namespace QAPPINFO
 
-#endif // appinfo_h__
+#endif    //LOGERR_QAPPINFO_H

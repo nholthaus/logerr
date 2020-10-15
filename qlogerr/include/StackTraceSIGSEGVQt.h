@@ -38,8 +38,8 @@
 //--------------------------------------------------------------------------------------------------
 
 #pragma once
-#ifndef StackTraceSigSev_h__
-#define StackTraceSigSev_h__
+#ifndef StackTraceSigSevQt_h_
+#define StackTraceSigSevQt_h_
 
 //-------------------------
 //	INCLUDES
@@ -52,11 +52,7 @@
 //--------------------------------------------------------------------------------------------------
 
 // Provides a c++ signal handler that will generate a stack trace upon crashing
-void stackTraceSIGSEGV(int sig);
+void stackTraceSIGSEGVQt(int sig);
 
-// This function intentionally crashes the program, 
-// for test purposes.
-void CrashAndBurn();
-
-#endif // StackTraceSigSev_h__
+#endif // StackTraceSigSevQt_h_
 

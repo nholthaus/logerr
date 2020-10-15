@@ -29,8 +29,7 @@ LogModel::LogModel(QObject* parent)
 	, m_updateTimer(new QTimer(this))
 {
 	m_regex.setPatternOptions(QRegularExpression::MultilineOption | QRegularExpression::DotMatchesEverythingOption);
-	
-	m_inbox.setTimeout(100ms);
+
 	m_parserThread = std::thread(std::bind(&LogModel::parse, this));
 
 	VERIFY(connect(m_updateTimer, &QTimer::timeout, this, &LogModel::appendRows));
@@ -191,7 +190,7 @@ bool LogModel::insertRows(int row, int count, const QModelIndex& parent /*= QMod
 
 	this->beginInsertRows(parent, row, row + count);
 
-	auto& insertionItr = m_logData.begin();
+	auto insertionItr = m_logData.begin();
 	std::advance(insertionItr, row);
 
 	for (int i = 0; i < count; ++i)
@@ -236,7 +235,7 @@ void LogModel::appendRow(const QString& value)
 	{
 		// this can happen for raw cout writes that didn't use the macros.
 		QStringList valueList = value.split('\n');
-		m_logData.emplace_back(TimestampLite());
+		m_logData.emplace_back(QString::fromStdString(TimestampLite()));
 		m_logData.back().append("INFO");
 		m_logData.back().append(valueList.front().trimmed());
 		valueList.pop_front();
@@ -250,7 +249,7 @@ void LogModel::appendRow(const QString& value)
 		m_logData.back().append(match.captured(3).trimmed());
 		if (!match.captured(4).isEmpty())
 		{
-			QStringList& details = match.captured(4).split('\n');
+			QStringList details = match.captured(4).split('\n');
 			for(auto& detail : details)
 				m_logData.back().append(detail.trimmed());
 		}			
@@ -268,7 +267,7 @@ void LogModel::appendRow(const std::string& value)
 }
 
 //--------------------------------------------------------------------------------------------------
-//	queueLogEntry (public ) []
+//	write (public ) []
 //--------------------------------------------------------------------------------------------------
 void LogModel::queueLogEntry(std::string string)
 {
@@ -300,7 +299,7 @@ void LogModel::parse()
 	std::string str;
 	while (!m_joinAll)
 	{
-		if (m_inbox.pop(str))
+		if (m_inbox.try_pop_for(str, 100ms))
 		{
 			QString value = QString::fromStdString(str);
 
@@ -316,7 +315,7 @@ void LogModel::parse()
 			{
 				// this can happen for raw cout writes that didn't use the macros.
 				QStringList valueList = value.split('\n');
-				parsedList.append(TimestampLite());
+				parsedList.append(QString::fromStdString(TimestampLite()));
 				parsedList.append("INFO");
 				parsedList.append(valueList.front().trimmed());
 				valueList.pop_front();
@@ -330,7 +329,7 @@ void LogModel::parse()
 				parsedList.append(match.captured(3).trimmed());
 				if (!match.captured(4).isEmpty())
 				{
-					QStringList& details = match.captured(4).split('\n');
+					QStringList details = match.captured(4).split('\n');
 					for (auto& detail : details)
 						parsedList.append(detail.trimmed());
 				}
@@ -348,7 +347,7 @@ void LogModel::appendRows()
 {
 	QStringList row;
 	std::deque<QStringList> rows;
-	while (m_outbox.pop(row) && !m_joinAll)
+	while (m_outbox.try_pop(row) && !m_joinAll)
 	{
 		rows.push_back(row);
 	}

@@ -48,16 +48,7 @@
 #include <iostream>
 #include <thread>
 
-#include <QTimer>
-#include <QMainWindow>
-
-#include <appinfo.h>
-#include <Application.h>
-#include <logDock.h>
-#include <LogStream.h>
-#include <LogFileWriter.h>
 #include <StackTraceException.h>
-#include <StackTraceSIGSEGV.h>
 #include <timestampLite.h>
 
 //------------------------------
@@ -66,28 +57,6 @@
 
 inline std::exception_ptr	g_exceptionPtr = nullptr;
 inline std::thread::id		g_mainThreadID;
-
-//-------------------------
-//	HELPER FUNCTIONS
-//-------------------------
-
-namespace logerr
-{
-	template<class T>
-	constexpr std::string printable(const T& value)
-	{
-		if constexpr (std::is_same_v<QString, std::remove_cv_t<T>>) return value.toStdString();
-		else if constexpr (std::is_same_v<std::string, std::remove_cv_t<T>>) return value;
-	}
-
-	static QMainWindow* getMainWindow()
-	{
-		foreach(QWidget * w, qApp->topLevelWidgets())
-			if (QMainWindow* mainWin = qobject_cast<QMainWindow*>(w))
-				return mainWin;
-		return nullptr;
-	}
-}
 
 //-------------------------
 //	MACROS
@@ -112,11 +81,12 @@ namespace logerr
 #define __FILENAME__ strrchr("\\" __FILE__, '\\') + 1
 #endif 
 
-// errors
+// error
 #ifndef ERR
 #define ERR(msg) std::this_thread::get_id() == g_mainThreadID ? throw StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__) : g_exceptionPtr = std::make_exception_ptr(StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__));
 #endif
 
+// fatal error
 #ifndef FATAL_ERR
 #define FATAL_ERR(msg) std::this_thread::get_id() == g_mainThreadID ? throw StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__, true) : g_exceptionPtr = std::make_exception_ptr(StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__, true));
 #endif
@@ -130,78 +100,11 @@ namespace logerr
 #define __STR2__(x) #x
 #define __STR1__(x) __STR2__(x)
 #define __LOC__ __FILE__ "(" __STR1__(__LINE__) "): TODO - "
-
 #ifdef Q_OS_WIN
 #define TODO(x) __pragma(message(__LOC__ x))
 #else
-#define TODO(x)
-#endif
-
-// Run once the event loop starts
-
-#define RUN_ONCE_STARTED(expression) QTimer::singleShot(0, [&] { expression });
-
-// MAIN
-#ifndef MAIN
-#define MAIN \
-int main(int argc, char* argv[]) \
-{ \
-	std::signal(SIGSEGV, stackTraceSIGSEGV); \
-	\
-	int code = 0; \
-	g_mainThreadID = std::this_thread::get_id(); \
-	\
-	QApplication::setAttribute(Qt::AA_EnableHighDpiScaling); \
-	\
-	Application app(argc, argv); \
-	app.setOrganizationName(APPINFO::organization()); \
-	app.setOrganizationDomain(APPINFO::organizationDomain()); \
-	app.setApplicationName(APPINFO::name()); \
-	app.setApplicationVersion(APPINFO::version()); \
-	\
-	LogStream logStream(std::cout); \
-	LogFileWriter logFileWriter; \
-	LogDock* logDock = new LogDock; \
-	\
-	VERIFY(QObject::connect(&logStream, &LogStream::logEntryReady, &logFileWriter, &LogFileWriter::queueLogEntry, Qt::QueuedConnection)); \
-	VERIFY(QObject::connect(&logStream, &LogStream::logEntryReady, logDock, &LogDock::queueLogEntry, Qt::QueuedConnection)); \
-	\
-	LOGINFO << logerr::printable(APPINFO::name()) << ' ' << logerr::printable(APPINFO::version()) << " Started." << std::endl; \
-	\
-	try \
-	{
-#endif
-
-// END_MAIN
-#ifndef END_MAIN
-#define END_MAIN \
-		auto mw = logerr::getMainWindow(); \
-		if (mw) mw->addDockWidget(Qt::BottomDockWidgetArea, logDock); \
-		app.exec(); \
-	} \
-	catch(StackTraceException& e) \
-	{ \
-		LOGERR << e.what() << std::endl; \
-		LOGINFO << logerr::printable(APPINFO::name()) << " exiting due to fatal error..." << std::endl;  \
-		code = 2; \
-	} \
-	catch(std::exception& e) \
-	{ \
-		LOGERR << "ERROR: Caught unhandled exception -  " << e.what() << std::endl; \
-		LOGINFO << logerr::printable(APPINFO::name()) << " exiting due to fatal error..." << std::endl;  \
-		code = 2; \
-	} \
-	catch(...) \
-	{ \
-		LOGERR << "ERROR: An unknown fatal error occured. " << std::endl; \
-		LOGINFO << logerr::printable(APPINFO::name()) << " exiting due to fatal error..." << std::endl;  \
-		code = 2; \
-	} \
-	\
-	if(code == 0) LOGINFO << logerr::printable(APPINFO::name()) << " Exited Successfully" << std::endl;\
-	\
-	return code; \
-}
+#define DO_PRAGMA(x) _Pragma (#x)
+#define TODO(x) DO_PRAGMA(message ("TODO - " #x))
 #endif
 
 #endif // logerrMacros_h__

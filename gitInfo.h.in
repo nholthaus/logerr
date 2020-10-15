@@ -27,22 +27,22 @@
 #ifndef gitinfo_h__
 #define gitinfo_h__
 
-#include <QString>
+#include <string>
 
-namespace logerr
+namespace git
 {
 	// Git Info
-	const QString gitBranch("@GIT_BRANCH@");
-	const QString gitCommitShort("@GIT_COMMIT_SHORT@");
-	const QString gitCommitLong("@GIT_COMMIT_LONG@");
-	const QString gitTag("@GIT_TAG@");
-	const QString gitDirty("@GIT_DIRTY_FLAG@");
-	const QString gitDirtyString("@GIT_DIRTY_STRING@");
-	const QString gitOrigin("@GIT_ORIGIN@");
-	const QString gitDirectory("@GIT_DIRECTORY@");
-	const QString gitRepo("@GIT_REPO@");
-	const QString gitUser("@GIT_USER@");
-	const QString gitEmail("@GIT_EMAIL@");
+	const std::string branch("@GIT_BRANCH@");
+	const std::string commitShort("@GIT_COMMIT_SHORT@");
+	const std::string commitLong("@GIT_COMMIT_LONG@");
+	const std::string tag("@GIT_TAG@");
+	const std::string dirty("@GIT_DIRTY_FLAG@");
+	const std::string dirtyString("@GIT_DIRTY_STRING@");
+	const std::string origin("@GIT_ORIGIN@");
+	const std::string directory("@GIT_DIRECTORY@");
+	const std::string repo("@GIT_REPO@");
+	const std::string user("@GIT_USER@");
+	const std::string email("@GIT_EMAIL@");
 }
 
 #endif // gitinfo_h__

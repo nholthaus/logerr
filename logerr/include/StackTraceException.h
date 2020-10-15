@@ -1,30 +1,30 @@
 //--------------------------------------------------------------------------------------------------
-// 
-//	
+//
+//
 //
 //--------------------------------------------------------------------------------------------------
 //
 // The MIT License (MIT)
 //
-// Permission is hereby granted, free of charge, to any person obtaining a copy of this software 
-// and associated documentation files (the "Software"), to deal in the Software without 
-// restriction, including without limitation the rights to use, copy, modify, merge, publish, 
-// distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the 
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+// and associated documentation files (the "Software"), to deal in the Software without
+// restriction, including without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
 // Software is furnished to do so, subject to the following conditions:
-// 
-// The above copyright notice and this permission notice shall be included in all copies or 
+//
+// The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
 //
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING 
-// BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND 
-// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+// BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 //--------------------------------------------------------------------------------------------------
 //
 // Copyright (c) 2020 Nic Holthaus
-// 
+//
 //--------------------------------------------------------------------------------------------------
 //
 // ATTRIBUTION:
@@ -46,9 +46,9 @@
 //-------------------------
 
 #include <exception>
+#include <string>
 
 #include <StackTrace.h>
-#include <QString>
 
 //-------------------------
 //	FORWARD DECLARATIONS
@@ -61,29 +61,26 @@
 class StackTraceException : public std::exception
 {
 public:
+	StackTraceException(const std::string& errorMessage, const std::string& filename, const std::string& function, size_t line, bool fatal = false);
 
-	StackTraceException(QString errorMessage, QString filename, QString function, size_t line, bool fatal = false);
-	
-	virtual char const* what() const override;
+	[[nodiscard]] char const* what() const noexcept override;
 
-	QString filename() const;
-	QString errorMessage() const;
-	QString errorDetails() const;
-	QString function() const;
-	size_t line() const;
-	QString trace() const;
-	bool fatal() const;
+	[[nodiscard]] std::string filename() const;
+	[[nodiscard]] std::string errorMessage() const;
+	[[nodiscard]] std::string errorDetails() const;
+	[[nodiscard]] std::string function() const;
+	[[nodiscard]] size_t      line() const;
+	[[nodiscard]] std::string trace() const;
+	[[nodiscard]] bool        fatal() const;
 
 private:
-
-	QString		m_errorMessage;
-	QString		m_fileName;
-	QString		m_function;
-	size_t		m_line;
-	QByteArray	m_what;
-	StackTrace	m_trace;
-	bool		m_fatal;
-
+	std::string m_errorMessage;
+	std::string m_fileName;
+	std::string m_function;
+	size_t      m_line;
+	std::string m_what;
+	StackTrace  m_trace;
+	bool        m_fatal;
 };
 
-#endif // StackTraceException_h__
+#endif    // StackTraceException_h__

@@ -1,11 +1,19 @@
+
+//----------------------------
+//  INCLUDES
+//----------------------------
+
 #include <StackTraceException.h>
 #include <appinfo.h>
 #include <appinfo.h>
 
+#include <iomanip>
+#include <iostream>
+
 //--------------------------------------------------------------------------------------------------
 //	StackTraceException (public ) []
 //--------------------------------------------------------------------------------------------------
-StackTraceException::StackTraceException(QString errorMessage, QString filename, QString function, size_t line, bool fatal)
+StackTraceException::StackTraceException(const std::string& errorMessage, const std::string& filename, const std::string& function, size_t line, bool fatal)
 	: m_errorMessage(errorMessage)
 	, m_fileName(filename)
 	, m_function(function)
@@ -13,35 +21,27 @@ StackTraceException::StackTraceException(QString errorMessage, QString filename,
 	, m_trace(StackTrace(1))
 	, m_fatal(fatal)
 {
-	m_what = QString(m_errorMessage)
-		.append('\n')
-		.append("in `")
-		.append(m_function)
-		.append("` at `")
-		.append(m_fileName)
-		.append(':')
-		.append(QString::number(line))
-		.append("`\n\n")
-		.append(APPINFO::systemDetails())
-		.append("STACK TRACE:\n\n")
-		.append(m_trace).toLocal8Bit();
+	std::ostringstream whatStream;
+	whatStream << m_errorMessage << std::endl << "in `" << m_function << "` at `" << m_fileName << ":" << std::to_string(line)
+	        << std::endl << std::endl << APPINFO::systemDetails() << "STACK TRACE:" << std::endl << std::endl << m_trace;
+	m_what = std::move(whatStream.str());
 
 	if (fatal)
-		m_what.prepend("FATAL ");
+		m_what.insert(0, "FATAL ");
 }
 
 //--------------------------------------------------------------------------------------------------
 //	what (public ) []
 //--------------------------------------------------------------------------------------------------
-char const* StackTraceException::what() const
+char const* StackTraceException::what() const noexcept
 {
-	return m_what.constData();
+	return m_what.data();
 }
 
 //--------------------------------------------------------------------------------------------------
 //	filename (public ) []
 //--------------------------------------------------------------------------------------------------
-QString StackTraceException::filename() const
+std::string StackTraceException::filename() const
 {
 	return m_fileName;
 }
@@ -49,7 +49,7 @@ QString StackTraceException::filename() const
 //--------------------------------------------------------------------------------------------------
 //	errorMessage (public ) []
 //--------------------------------------------------------------------------------------------------
-QString StackTraceException::errorMessage() const
+std::string StackTraceException::errorMessage() const
 {
 	return m_errorMessage;
 }
@@ -57,7 +57,7 @@ QString StackTraceException::errorMessage() const
 //--------------------------------------------------------------------------------------------------
 //	errorDetails (public ) []
 //--------------------------------------------------------------------------------------------------
-QString StackTraceException::errorDetails() const
+std::string StackTraceException::errorDetails() const
 {
 	return m_what;
 }
@@ -65,7 +65,7 @@ QString StackTraceException::errorDetails() const
 //--------------------------------------------------------------------------------------------------
 //	function () []
 //--------------------------------------------------------------------------------------------------
-QString StackTraceException::function() const
+std::string StackTraceException::function() const
 {
 	return m_function;
 }
@@ -81,7 +81,7 @@ size_t StackTraceException::line() const
 //--------------------------------------------------------------------------------------------------
 //	trace (public ) []
 //--------------------------------------------------------------------------------------------------
-QString StackTraceException::trace() const
+std::string StackTraceException::trace() const
 {
 	return m_trace;
 }

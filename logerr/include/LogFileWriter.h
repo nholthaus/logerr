@@ -27,67 +27,54 @@
 // 
 //--------------------------------------------------------------------------------------------------
 //
-//	ATTRIBUTION:
-//	https://stackoverflow.com/questions/10405739/const-ref-when-sending-signals-in-qt
+// ATTRIBUTION:
+//
 //
 //--------------------------------------------------------------------------------------------------
 //
-/// @file	LogStream.h
-/// @brief	Stream that captures std::cout and passes it on to file logging and a log model
+/// @file	LogFileWriter.h
+/// @brief	Writes entries to the log file from a separate thread
 //
 //--------------------------------------------------------------------------------------------------
 
 #pragma once
-#ifndef LogStream_h__
-#define LogStream_h__
+#ifndef LogFileWriter_h__
+#define LogFileWriter_h__
 
 //-------------------------
 //	INCLUDES
 //-------------------------
 
-#include <mutex>
-#include <string>
-#include <streambuf>
+#include <concurrent_queue.h>
 
-#include <QObject>
-#include <QThreadStorage>
+#include <atomic>
+#include <condition_variable>
+#include <string>
+#include <thread>
 
 //-------------------------
 //	FORWARD DECLARATIONS
 //-------------------------
 
-namespace std
-{
-	ostream;
-}
 
 //--------------------------------------------------------------------------------------------------
-//	LogStream
+//	LogFileWriter
 //--------------------------------------------------------------------------------------------------
-class LogStream : public QObject, public std::basic_streambuf<char>
-{
-	Q_OBJECT
 
+class LogFileWriter
+{
 public:
 
-	LogStream(std::ostream& stream);
-	virtual ~LogStream();
+	explicit LogFileWriter(std::string logFilePath = "");
+	virtual ~LogFileWriter();
 
-signals:
-
-	void logEntryReady(std::string str);
+	void write(std::string str);
 
 protected:
 
-	virtual int_type overflow(int_type v);
-	virtual std::streamsize xsputn(const char* p, std::streamsize n);
-
-private:
-
-	std::ostream&						m_stream;
-	std::streambuf*						m_old_buf;
-	QThreadStorage<std::string>			m_string;
+	concurrent_queue<std::string>	m_logQueue;
+	std::thread						m_thread;
+	std::atomic_bool				m_joinAll{false};
 };
 
-
-#endif // LogStream_h__
+#endif // LogFileWriter_h__

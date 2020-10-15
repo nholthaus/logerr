@@ -1,6 +1,6 @@
 //--------------------------------------------------------------------------------------------------
 // 
-//	LOGERR
+//	
 //
 //--------------------------------------------------------------------------------------------------
 //
@@ -32,54 +32,31 @@
 //
 //--------------------------------------------------------------------------------------------------
 //
-/// @file	LogFileWriter.h
-/// @brief	Writes entries to the log file from a seperate thread
+/// @file	StackTraceSigSev.h
+/// @brief	
 //
 //--------------------------------------------------------------------------------------------------
 
 #pragma once
-#ifndef LogFileWriter_h__
-#define LogFileWriter_h__
+#ifndef StackTraceSigSevQt_h_
+#define StackTraceSigSevQt_h_
 
 //-------------------------
 //	INCLUDES
 //-------------------------
 
-#include <concurrentQueue.h>
-#include <condition_variable>
-#include <string>
-#include <thread>
-
-#include <QObject>
-#include <QString> 
-
-//-------------------------
-//	FORWARD DECLARATIONS
-//-------------------------
-
+#include <csignal>
 
 //--------------------------------------------------------------------------------------------------
-//	LogFileWriter
+//	FUNCTIONS
 //--------------------------------------------------------------------------------------------------
 
-class LogFileWriter : public QObject
-{
-	Q_OBJECT
+// Provides a c++ signal handler that will generate a stack trace upon crashing
+void stackTraceSIGSEGV(int sig);
 
-public:
+// This function intentionally crashes the program,
+// for test purposes.
+void CrashAndBurn();
 
-	LogFileWriter(QString logFilePath = "");
-	virtual ~LogFileWriter();
-	
-public slots:
+#endif // StackTraceSigSevQt_h_
 
-	void queueLogEntry(std::string str);
-
-protected:
-
-	ConcurrentQueue<std::string>	m_logQueue;
-	std::thread						m_thread;
-	std::atomic_bool				m_joinAll = false;
-};
-
-#endif // LogFileWriter_h__

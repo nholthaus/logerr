@@ -1,6 +1,6 @@
 //--------------------------------------------------------------------------------------------------
 // 
-//	
+//	LOGERR
 //
 //--------------------------------------------------------------------------------------------------
 //
@@ -32,103 +32,94 @@
 //
 //--------------------------------------------------------------------------------------------------
 //
-/// @file	LogModel.h
-/// @brief	
+/// @file	logDock.h
+/// @brief	Dock Widget that contains the log model and view
 //
 //--------------------------------------------------------------------------------------------------
 
 #pragma once
-#ifndef LogModel_h__
-#define LogModel_h__
+#ifndef logDock_h__
+#define logDock_h__
 
 //-------------------------
 //	INCLUDES
 //-------------------------
 
-#include <concurrentQueue.h>
-
-#include <deque>
+#include <concurrent_queue.h>
 #include <string>
-#include <thread>
 
-#include <QAbstractItemModel>
-#include <QMetaEnum>
-#include <QRegularExpression>
-#include <QStringList>
+#include <QDockWidget> 
 
 //-------------------------
 //	FORWARD DECLARATIONS
 //-------------------------
 
-class QModelIndex;
-class QTimer;
-class QVariant;
+class LogModel;
+class LogProxyModel;
 
+class QCheckBox;
+class QFrame;
+class QGroupBox;
+class QHBoxLayout;
+class QLabel;
+class QLineEdit;
+class QToolButton;
+class QTreeView;
+class QVBoxLayout;
 
 //--------------------------------------------------------------------------------------------------
-//	LogModel
+//	LogDock
 //--------------------------------------------------------------------------------------------------
-
-class LogModel : public QAbstractItemModel
+	
+class LogDock	: public QDockWidget
 {
-	Q_GADGET
+	Q_OBJECT
 
 public:
 
-	enum Column
-	{
-		Timestamp = 0,
-		Type = 1,
-		Message = 2,
-	};
-	Q_ENUM(Column);
-
-public:
-
-	LogModel(QObject* parent = nullptr);
-	virtual ~LogModel();
+	LogDock();
+	virtual ~LogDock();
 	
-	virtual QModelIndex	index(int row, int column, const QModelIndex& parent = QModelIndex()) const override;
-	virtual QModelIndex parent(const QModelIndex& child) const override;
-	virtual int	rowCount(const QModelIndex& parent = QModelIndex()) const override;
-	virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override;
-	virtual bool hasChildren(const QModelIndex& parent = QModelIndex()) const override;
-	virtual QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
-	virtual QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
-	virtual bool insertRows(int row, int count, const QModelIndex& parent = QModelIndex()) override;
-	virtual bool setData(const QModelIndex& index, const QVariant& value, int role = Qt::EditRole) override;
 	
-	virtual void appendRow(const QString& value);
-	virtual void appendRow(const std::string& value);
-
 public slots:
 
-	void queueLogEntry(std::string string);
-	size_t scrollbackBufferSize() const noexcept;
-	void setScrollbackBufferSize(size_t size);
+	void queueLogEntry(std::string str);
+
+private slots:
+ 
+	void on_scrollbackBufferSize_changed();
+ 	void on_showTimestampsCheckBox_toggled();
+	void autoscroll();
+	void stableScroll();
+	void search(const QString& value);
 
 private:
 
-	void parse();
-	void appendRows();
+	LogModel*				m_logModel					= nullptr;
+	LogProxyModel*			m_logProxyModel				= nullptr;
+	QTreeView*				m_logView					= nullptr;
 
-protected:
+	QFrame*					m_topLevelWidget			= nullptr;
+	QVBoxLayout*			m_topLevelLayout			= nullptr;
+	QHBoxLayout*			m_settingsLayout			= nullptr;
+	QGroupBox*				m_typesGroupbox				= nullptr;
+	QGroupBox*				m_settingsGroupBox			= nullptr;
+	QGroupBox*				m_searchGroupBox			= nullptr;
+	
+	QCheckBox*				m_errorCheckBox				= nullptr;
+	QCheckBox*				m_warningCheckBox			= nullptr; 
+	QCheckBox*				m_infoCheckBox				= nullptr; 
+	QCheckBox*				m_debugCheckBox				= nullptr;
 
-	QRegularExpression				m_regex;
-	std::deque<QStringList>			m_logData;
-	QMetaEnum						m_columns;
+	QCheckBox*				m_showTimestampsCheckBox	= nullptr;
 
-	ConcurrentQueue<std::string>	m_inbox;
-	ConcurrentQueue<QStringList>	m_outbox;
-	QTimer*							m_updateTimer;
-	std::thread						m_parserThread;
+	QLabel*					m_scrollbackLabel			= nullptr;
+	QLineEdit*				m_scrollbackLineEdit		= nullptr;
+	QCheckBox*				m_autoscrollCheckBox		= nullptr;
 
-	std::atomic_bool				m_joinAll = false;
-
-	size_t							m_scrollbackBufferSize = 10000;
-	size_t							m_numRemoved = 0;			// The number of entries removed from the model for exceeding the scroll buffer size
-
-
+	QLineEdit*				m_searchLineEdit			= nullptr;
+	QToolButton*			m_matchCaseButton			= nullptr;
+	QToolButton*			m_regexButton				= nullptr;
 };
 
-#endif // LogModel_h__
+#endif // logDock_h__
