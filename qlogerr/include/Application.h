@@ -62,9 +62,9 @@ class Application : public QApplication
 public:
 
 	Application(int& argc, char* argv[]);
-	virtual ~Application();
+	~Application() override;
 	
-	virtual bool notify(QObject*, QEvent*) override;
+	bool notify(QObject*, QEvent*) override;
 
 protected:
 

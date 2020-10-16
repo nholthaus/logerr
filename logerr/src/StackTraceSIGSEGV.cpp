@@ -28,7 +28,7 @@ void stackTraceSIGSEGV(int sig)
 	time += "    Crash Time   : " + std::string(TimestampLite()) + "\n";
 	time += "\n";
 
-	std::string crashDetails = APPINFO::name() + " Crashed! :'(" + time + APPINFO::systemDetails() + "STACK TRACE:\n\n" + std::string(trace);
+	std::string crashDetails = APPINFO::name() + " Crashed! :'(" + time + APPINFO::systemDetails() + "STACK TRACE:\n\n" + trace.data();
 	LOGERR << crashDetails << std::endl;
 
 	// make sure the directory exists

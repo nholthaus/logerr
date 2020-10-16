@@ -170,7 +170,6 @@ char** processFile(const char* fileName, bfd_vma* addr, int naddr)
 void findAddressInSection(bfd* abfd, asection* section, void* data)
 {
 	FileLineDesc* desc = (FileLineDesc*)data;
-//	assert(desc);
 	return desc->findAddressInSection(abfd, section);
 }
 
@@ -224,8 +223,8 @@ char** backtraceSymbols(void* const* addrList, int numAddr)
 //--------------------------------------------------------------------------------------------------
 //	findAddressInSection (public ) []
 //--------------------------------------------------------------------------------------------------
-//void FileLineDesc::findAddressInSection(bfd* abfd, asection* section)
-//{
+void FileLineDesc::findAddressInSection(bfd* abfd, asection* section)
+{
 //	if (mFound)
 //		return;
 //
@@ -242,5 +241,5 @@ char** backtraceSymbols(void* const* addrList, int numAddr)
 //
 //	mFound = bfd_find_nearest_line(abfd, section, mSyms, (mPc - vma),
 //		(const char**)&mFilename, (const char**)&mFunctionname, &mLine);
-//}
+}
 

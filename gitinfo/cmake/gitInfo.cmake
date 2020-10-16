@@ -1,7 +1,6 @@
 # Use git branch as project name if clones from git
 find_package(Git)
 if(GIT_FOUND)
-
 	execute_process(
 	  COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD
 	  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}

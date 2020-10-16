@@ -45,14 +45,42 @@ find_library(LIBBFD_BFD_LIBRARY
         ENV LIBRARY_PATH
         ENV LD_LIBRARY_PATH)
 
+find_library (LIBBFD_IBERTY_LIBRARY
+        NAMES
+        iberty
+        PATHS
+        /usr/lib
+        /usr/lib64
+        /usr/local/lib
+        /usr/local/lib64
+        /opt/local/lib
+        /opt/usr/lib64
+        ENV LIBRARY_PATH
+        ENV LD_LIBRARY_PATH)
+
+find_library (LIBBFD_OPCODES_LIBRARY
+        NAMES
+        opcodes
+        PATHS
+        /usr/lib
+        /usr/lib64
+        /usr/local/lib
+        /usr/local/lib64
+        /opt/local/lib
+        /opt/usr/lib64
+        ENV LIBRARY_PATH
+        ENV LD_LIBRARY_PATH)
+
 include(FindPackageHandleStandardArgs)
 
 # handle the QUIETLY and REQUIRED arguments and set LIBBFD_FOUND to TRUE if all listed variables are TRUE
 find_package_handle_standard_args(LIBBFD DEFAULT_MSG
         LIBBFD_BFD_LIBRARY
+        LIBBFD_IBERTY_LIBRARY
+        LIBBFD_OPCODES_LIBRARY
         LIBBFD_INCLUDE_DIRS)
 
-mark_as_advanced(LIBBFD_INCLUDE_DIRS LIBBFD_LIBRARIES)
+mark_as_advanced(LIBBFD_INCLUDE_DIRS LIBBFD_LIBRARIES LIBBFD_IBERTY_LIBRARY)
 
 add_library(bfd INTERFACE)
-set_target_properties(bfd PROPERTIES INTERFACE_LINK_LIBRARIES "${LIBBFD_LIBRARIES}" INTERFACE_INCLUDE_DIRECTORIES "${LIBBFD_INCLUDE_DIRS}")
+set_target_properties(bfd PROPERTIES INTERFACE_LINK_LIBRARIES "${LIBBFD_LIBRARIES};${LIBBFD_IBERTY_LIBRARY};${LIBBFD_OPCODES_LIBRARY}" INTERFACE_INCLUDE_DIRECTORIES "${LIBBFD_INCLUDE_DIRS}")

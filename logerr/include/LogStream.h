@@ -45,14 +45,13 @@
 //	INCLUDES
 //-------------------------
 
-#include <function_view.h>
-
 // std
+#include <functional>
+#include <iostream>
 #include <mutex>
-#include <set>
 #include <streambuf>
 #include <string>
-#include <iosfwd>
+#include <vector>
 
 //--------------------------------------------------------------------------------------------------
 //	LogStream
@@ -63,7 +62,11 @@ public:
 	explicit LogStream(std::ostream& stream);
 	~LogStream() override;
 
-	void registerLogFunction(function_view<void(std::string)> function);
+	template<typename Function>
+	void registerLogFunction(Function&& function)
+	{
+		m_callbacks.emplace_back(std::forward<Function>(function));
+	}
 
 protected:
 	int_type        overflow(int_type v) override;
@@ -71,10 +74,10 @@ protected:
 	void            log();
 
 private:
-	std::ostream&                              m_stream;
-	std::streambuf*                            m_old_buf;
-	std::set<function_view<void(std::string)>> m_callbacks;
-	static thread_local std::string            m_string;
+	std::ostream&                                 m_stream;
+	std::streambuf*                               m_old_buf;
+	std::vector<std::function<void(std::string)>> m_callbacks;
+	static thread_local std::string               m_string;
 };
 
 #endif    // LogStream_h_

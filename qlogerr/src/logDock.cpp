@@ -18,6 +18,9 @@
 #include <QToolButton>
 #include <QTreeView>
 #include <QVBoxLayout>
+#include <utility>
+
+Q_DECLARE_METATYPE(std::string);
 
 //--------------------------------------------------------------------------------------------------
 //	LogDock (public ) []
@@ -45,6 +48,8 @@ LogDock::LogDock()
 	, m_matchCaseButton(new QToolButton)
 	, m_regexButton(new QToolButton)
 {
+	qRegisterMetaType<std::string>();
+
 	QFont monospaceFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
 
 	this->setWidget(m_topLevelWidget);
@@ -137,7 +142,7 @@ LogDock::~LogDock()
 //--------------------------------------------------------------------------------------------------
 void LogDock::queueLogEntry(std::string str)
 {
-	m_logModel->queueLogEntry(str);
+	m_logModel->queueLogEntry(std::move(str));
 }
 
 //--------------------------------------------------------------------------------------------------

@@ -4,26 +4,41 @@
 //----------------------------
 
 #include <StackTraceException.h>
+#ifdef BUILD_WITH_QT
+#include <QString>
+#include <../../qlogerr/include/qappinfo.h>
+#else
 #include <appinfo.h>
-#include <appinfo.h>
+#endif
 
-#include <iomanip>
-#include <iostream>
+#include <sstream>
+#include <utility>
 
 //--------------------------------------------------------------------------------------------------
 //	StackTraceException (public ) []
 //--------------------------------------------------------------------------------------------------
-StackTraceException::StackTraceException(const std::string& errorMessage, const std::string& filename, const std::string& function, size_t line, bool fatal)
-	: m_errorMessage(errorMessage)
-	, m_fileName(filename)
-	, m_function(function)
-	, m_line(line)
-	, m_trace(StackTrace(1))
-	, m_fatal(fatal)
+StackTraceException::StackTraceException(std::string errorMessage, std::string filename, std::string function, size_t line, bool fatal)
+    : m_errorMessage(std::move(errorMessage))
+    , m_fileName(std::move(filename))
+    , m_function(std::move(function))
+    , m_line(line)
+    , m_trace(StackTrace(1))
+    , m_fatal(fatal)
 {
 	std::ostringstream whatStream;
-	whatStream << m_errorMessage << std::endl << "in `" << m_function << "` at `" << m_fileName << ":" << std::to_string(line)
-	        << std::endl << std::endl << APPINFO::systemDetails() << "STACK TRACE:" << std::endl << std::endl << m_trace;
+	whatStream << m_errorMessage << std::endl
+	           << "in `" << m_function << "` at `" << m_fileName << ":" << std::to_string(line) << "`"
+	           << std::endl
+	           << std::endl
+#ifndef BUILD_WITH_QT
+	           << APPINFO::systemDetails()
+#else
+	           << QAPPINFO::systemDetails().toStdString()
+#endif
+	           << "STACK TRACE:"
+	           << std::endl
+	           << std::endl
+	           << m_trace.data();
 	m_what = std::move(whatStream.str());
 
 	if (fatal)
@@ -93,4 +108,3 @@ bool StackTraceException::fatal() const
 {
 	return m_fatal;
 }
-

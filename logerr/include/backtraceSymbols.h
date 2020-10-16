@@ -38,10 +38,10 @@ public:
    int          mFound;
    asymbol**    mSyms;
 };
-
-static int findMatchingFile( struct dl_phdr_info* info, size_t size, void* data );
-static asymbol** kstSlurpSymtab( bfd* abfd, const char* fileName );
-static char** translateAddressesBuf( bfd* abfd, bfd_vma* addr, int numAddr, asymbol** syms );
-static char** processFile( const char* fileName, bfd_vma* addr, int naddr );
+//
+//static int findMatchingFile( struct dl_phdr_info* info, size_t size, void* data );
+//static asymbol** kstSlurpSymtab( bfd* abfd, const char* fileName );
+//static char** translateAddressesBuf( bfd* abfd, bfd_vma* addr, int numAddr, asymbol** syms );
+//static char** processFile( const char* fileName, bfd_vma* addr, int naddr );
 static void findAddressInSection( bfd* abfd, asection* section, void* data );
 char** backtraceSymbols( void* const* addrList, int numAddr );

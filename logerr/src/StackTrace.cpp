@@ -183,9 +183,9 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 		}
 
 		// get the file name associated with the symbol
-		char** bts = backtraceSymbols(&addrlist[i], 1);
-		value << bts[0] << std::endl;
-		free(bts);
+//		char** bts = backtraceSymbols(&addrlist[i], 1);
+//		value << bts[0] << std::endl;
+//		free(bts);
 	}
 
 	// store values
@@ -198,17 +198,17 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 }
 
 //--------------------------------------------------------------------------------------------------
-//  string ( public )
+//  data ( public )
+//--------------------------------------------------------------------------------------------------
+const char* StackTrace::data() const noexcept
+{
+	return m_value.data();
+}
+
+//--------------------------------------------------------------------------------------------------
+//  operator string ( public )
 //--------------------------------------------------------------------------------------------------
 StackTrace::operator std::string() const
 {
 	return m_value;
-}
-
-//----------------------------------------------------------------------------------------------------------------------
-//  char* ( public )
-//----------------------------------------------------------------------------------------------------------------------
-StackTrace::operator const char*() const
-{
-	return m_value.data();
 }

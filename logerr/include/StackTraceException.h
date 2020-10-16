@@ -61,7 +61,7 @@
 class StackTraceException : public std::exception
 {
 public:
-	StackTraceException(const std::string& errorMessage, const std::string& filename, const std::string& function, size_t line, bool fatal = false);
+	StackTraceException(std::string errorMessage, std::string filename, std::string function, size_t line, bool fatal = false);
 
 	[[nodiscard]] char const* what() const noexcept override;
 

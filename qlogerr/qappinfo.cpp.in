@@ -47,7 +47,7 @@ namespace QAPPINFO::detail
 	// Application Info
 	const QString name(QString::fromStdString(git::repo));
 	const QString organization("@APPLICATION_ORGANIZATION@");
-	const QString organizationDomain(QString::fromStdString(git::origin);
+	const QString organizationDomain(QString::fromStdString(git::origin));
 	const QString version(QString::fromStdString(git::tag) + '.' + QString::fromStdString(git::commitShort) + QString::fromStdString(git::dirtyString));
 
 	// Build Host Info

@@ -52,7 +52,6 @@
 class StackTrace
 {
 public:
-
 	/**
 	 * @brief		Constructor
 	 * @param[in]	ignore	Number of items to ignore in the stack trace. Every time this class is
@@ -62,17 +61,21 @@ public:
 	explicit StackTrace(unsigned int ignore = 0);
 
 	/**
+	 * @brief		Stack Trace data
+	 * @returns		The results of the stack trace as a string
+	*/
+	[[nodiscard]] const char* data() const noexcept;
+
+	/**
 	 * @brief		Stack trace string
 	 * @returns		The results of the stack trace as a QString
 	*/
 	operator std::string() const;
-	operator const char*() const;
 
 private:
-
-	static const size_t MAX_FRAMES = 64;				///< Arbitrary.
-	static const size_t FUNCTION_NAME_SIZE = 2048;		///< Arbitrary.
+	static const size_t MAX_FRAMES         = 64;      ///< Arbitrary.
+	static const size_t FUNCTION_NAME_SIZE = 2048;    ///< Arbitrary.
 
 	std::string m_value;
 };
-#endif // stackTrace_h_
+#endif    // stackTrace_h_

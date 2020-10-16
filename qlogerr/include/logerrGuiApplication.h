@@ -56,8 +56,8 @@
 #include <LogStream.h>
 #include <StackTraceException.h>
 #include <StackTraceSIGSEGVQt.h>
-#include <appinfo.h>
 #include <logDock.h>
+#include <qappinfo.h>
 #include <timestampLite.h>
 
 //-------------------------
@@ -81,7 +81,7 @@ namespace logerr
 				return mainWin;
 		return nullptr;
 	}
-}
+}    // namespace logerr
 
 //----------------------------
 //  MACROS
@@ -92,63 +92,62 @@ namespace logerr
 
 /// Place at the very beginning of the `main` function.
 #ifndef LOGERR_GUI_APP_BEGIN
-#define LOGERR_GUI_APP_BEGIN                                                                                                   \
-	std::signal(SIGSEGV, stackTraceSIGSEGVQt);                                                                                 \
-                                                                                                                               \
-	int code       = 0;                                                                                                        \
-	g_mainThreadID = std::this_thread::get_id();                                                                               \
-                                                                                                                               \
-	QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);                                                                   \
-                                                                                                                               \
-	Application app(argc, argv);                                                                                               \
-	app.setOrganizationName(APPINFO::organization());                                                                          \
-	app.setOrganizationDomain(APPINFO::organizationDomain());                                                                  \
-	app.setApplicationName(APPINFO::name());                                                                                   \
-	app.setApplicationVersion(APPINFO::version());                                                                             \
-                                                                                                                               \
-	LogFileWriter logFileWriter;                                                                                               \
-	LogDock*      logDock = new LogDock;                                                                                       \
-	LogStream     logStream(std::cout);                                                                                        \
-                                                                                                                               \
-	logStream.registerLogFunction(std::bind(&logFileWriter, &LogFileWriter::write));                                           \
-	logStream.registerLogFunction(std::bind(logDock, &LogDock::queueLogEntry));                                                \
-                                                                                                                               \
-	LOGINFO << logerr::printable(APPINFO::name()) << ' ' << logerr::printable(APPINFO::version()) << " Started." << std::endl; \
-                                                                                                                               \
-	try                                                                                                                        \
+#define LOGERR_GUI_APP_BEGIN                                                                                                     \
+	std::signal(SIGSEGV, stackTraceSIGSEGVQt);                                                                                   \
+                                                                                                                                 \
+	int code       = 0;                                                                                                          \
+	g_mainThreadID = std::this_thread::get_id();                                                                                 \
+                                                                                                                                 \
+	QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);                                                                     \
+                                                                                                                                 \
+	Application app(argc, argv);                                                                                                 \
+	app.setOrganizationName(QAPPINFO::organization());                                                                           \
+	app.setOrganizationDomain(QAPPINFO::organizationDomain());                                                                   \
+	app.setApplicationName(QAPPINFO::name());                                                                                    \
+	app.setApplicationVersion(QAPPINFO::version());                                                                              \
+                                                                                                                                 \
+	LogFileWriter logFileWriter;                                                                                                 \
+	LogDock*      logDock = new LogDock;                                                                                         \
+	LogStream     logStream(std::cout);                                                                                          \
+                                                                                                                                 \
+	logStream.registerLogFunction([&logFileWriter](std::string str) { logFileWriter.write(str); });                              \
+	logStream.registerLogFunction([&logDock](std::string str) { logDock->queueLogEntry(str); });                                  \
+                                                                                                                                 \
+	LOGINFO << logerr::printable(QAPPINFO::name()) << ' ' << logerr::printable(QAPPINFO::version()) << " Started." << std::endl; \
+                                                                                                                                 \
+	try                                                                                                                          \
 	{
 #endif
 
 /// Place at the very end of the `main` function.
 #ifndef LOGERR_GUI_APP_END
-#define LOGERR_GUI_APP_END                                                                               \
-	auto mw = logerr::getMainWindow();                                                                   \
-	if (mw) mw->addDockWidget(Qt::BottomDockWidgetArea, logDock);                                        \
-	app.exec();                                                                                          \
-	}                                                                                                    \
-	catch (StackTraceException & e)                                                                      \
-	{                                                                                                    \
-		LOGERR << e.what() << std::endl;                                                                 \
-		LOGINFO << logerr::printable(APPINFO::name()) << " exiting due to fatal error..." << std::endl;  \
-		code = 2;                                                                                        \
-	}                                                                                                    \
-	catch (std::exception & e)                                                                           \
-	{                                                                                                    \
-		LOGERR << "ERROR: Caught unhandled exception -  " << e.what() << std::endl;                      \
-		LOGINFO << logerr::printable(APPINFO::name()) << " exiting due to fatal error..." << std::endl;  \
-		code = 2;                                                                                        \
-	}                                                                                                    \
-	catch (...)                                                                                          \
-	{                                                                                                    \
-		LOGERR << "ERROR: An unknown fatal error occurred. " << std::endl;                               \
-		LOGINFO << logerr::printable(APPINFO::name()) << " exiting due to fatal error..." << std::endl;  \
-		code = 2;                                                                                        \
-	}                                                                                                    \
-                                                                                                         \
-	if (code == 0) LOGINFO << logerr::printable(APPINFO::name()) << " Exited Successfully" << std::endl; \
-                                                                                                         \
-	return code;                                                                                         \
-	}
+#define LOGERR_GUI_APP_END                                                                                \
+	auto mw = logerr::getMainWindow();                                                                    \
+	if (mw) mw->addDockWidget(Qt::BottomDockWidgetArea, logDock);                                         \
+	app.exec();                                                                                           \
+	}                                                                                                     \
+	catch (StackTraceException & e)                                                                       \
+	{                                                                                                     \
+		LOGERR << e.what() << std::endl;                                                                  \
+		LOGINFO << logerr::printable(QAPPINFO::name()) << " exiting due to fatal error..." << std::endl;  \
+		code = 2;                                                                                         \
+	}                                                                                                     \
+	catch (std::exception & e)                                                                            \
+	{                                                                                                     \
+		LOGERR << "ERROR: Caught unhandled exception -  " << e.what() << std::endl;                       \
+		LOGINFO << logerr::printable(QAPPINFO::name()) << " exiting due to fatal error..." << std::endl;  \
+		code = 2;                                                                                         \
+	}                                                                                                     \
+	catch (...)                                                                                           \
+	{                                                                                                     \
+		LOGERR << "ERROR: An unknown fatal error occurred. " << std::endl;                                \
+		LOGINFO << logerr::printable(QAPPINFO::name()) << " exiting due to fatal error..." << std::endl;  \
+		code = 2;                                                                                         \
+	}                                                                                                     \
+                                                                                                          \
+	if (code == 0) LOGINFO << logerr::printable(QAPPINFO::name()) << " Exited Successfully" << std::endl; \
+                                                                                                          \
+	return code;
 #endif
 
 #endif    //LOGERR_LOGERRGUIAPPLICATION_H

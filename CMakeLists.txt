@@ -3,9 +3,8 @@
 #-------------------------------------------------------------------------------
 
 cmake_minimum_required(VERSION 3.16)
-cmake_host_system_information(RESULT BUILD_HOSTNAME QUERY HOSTNAME)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 #-------------------------------------------------------------------------------
 #	CMAKE OPTIONS
@@ -13,30 +12,84 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 option(BUILD_WITH_QT "Build the Qt classes" OFF)
 
+project(logerr-dummy CXX)
+
 #-------------------------------------------------------------------------------
-#	GIT SETTINGS
+#	Qt SETTINGS
 #-------------------------------------------------------------------------------
 
-# Add a custom command that produces version.cpp, plus
-# a dummy output that's not actually produced, in order
-# to force version.cmake to always be re-run before the build
-ADD_CUSTOM_TARGET(
-        gitInfo ALL
-        COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_CURRENT_SOURCE_DIR}/gitInfo.h.in
-        ${CMAKE_CURRENT_BINARY_DIR}/gitInfo.h.in
-        COMMAND ${CMAKE_COMMAND} -P
-        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/gitInfo.cmake
-)
+if (BUILD_WITH_QT)
+
+    # SUPPORTED VERSIONS
+    set(QT_MINIMUM_VERSION 5.9.0)
+    set(QT_DEFAULT_VERSION 5.15.1)
+
+    enable_testing(true)
+
+    # Required Qt settings
+    set(CMAKE_INCLUDE_CURRENT_DIR ON)
+    set(CMAKE_AUTOMOC ON)
+    set(CMAKE_AUTOUIC ON)
+    set(CMAKE_AUTORCC ON)
+
+    # disable warnings on the Qt sources
+    if (WIN32)
+        add_compile_options("/experimental:external")
+        add_compile_options("/external:env:QTDIR")
+        add_compile_options("/external:W0")
+    endif (WIN32)
+
+    # Setup the cmake prefix path so Qt can be found. Use the QTDIR variable if defined
+    if (DEFINED ENV{QTDIR})
+        set(QTDIR $ENV{QTDIR} CACHE STRING "Qt install path")
+    else ()
+        MESSAGE(STATUS "`QTDIR` environment variable not set.")
+        if (WIN32)
+            set(QTDIR "C:/Qt/${QT_DEFAULT_VERSION}/msvc2019_64/" CACHE STRING "Qt install path")
+        else ()
+            set(QTDIR "/opt/Qt/${QT_DEFAULT_VERSION}/gcc_64/" CACHE STRING "Qt install path")
+        endif ()
+    endif ()
+
+    set(QTDIR $ENV{QTDIR} CACHE STRING "Qt install path")
+    list(APPEND CMAKE_PREFIX_PATH ${QTDIR})
+
+    if (WIN32)
+        LIST(APPEND QT_SEARCH_PATHS ${Qt5_DIR} "C:/Qt/${QT_MINIMUM_VERSION}/msvc2019_64" "C:/Qt/${QT_DEFAULT_VERSION}/msvc2019_64" "E:/Qt/${QT_DEFAULT_VERSION}/msvc2019_64")
+    else ()
+        LIST(APPEND QT_SEARCH_PATHS ${Qt5_DIR} /usr/lib64/qt5/ /opt/Qt/${QT_MINIMUM_VERSION}/gcc_64 /opt/Qt/${QT_DEFAULT_VERSION}/gcc_64)
+    endif ()
+
+    # Test for supported Qt version
+    find_program(QMAKE_EXECUTABLE NAMES qmake
+            HINTS ${QT_SEARCH_PATHS}
+            ENV QTDIR
+            PATH_SUFFIXES bin)
+    execute_process(COMMAND ${QMAKE_EXECUTABLE} -query QT_VERSION OUTPUT_VARIABLE QT_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if (QT_VERSION VERSION_LESS QT_MINIMUM_VERSION)
+        MESSAGE(FATAL_ERROR "Minimum supported Qt version: ${QT_MINIMUM_VERSION}. Installed version: ${QT_VERSION}")
+    endif ()
+
+    message(STATUS "Using Qt version: ${QT_VERSION}")
+
+    # Find the necessary Qt5 modules
+    find_package(Qt5 COMPONENTS
+            Core
+            Gui
+            Widgets
+            REQUIRED
+            )
+
+    find_package(Threads REQUIRED)
+
+endif (BUILD_WITH_QT)
 
 #-------------------------------------------------------------------------------
 #	SUBDIRECTORIES
 #-------------------------------------------------------------------------------
 
-add_subdirectory(logerr)
-
+add_subdirectory(gitinfo)
 if (BUILD_WITH_QT)
     add_subdirectory(qlogerr)
 endif (BUILD_WITH_QT)
-
-project(logerr-dummy)
+add_subdirectory(logerr)

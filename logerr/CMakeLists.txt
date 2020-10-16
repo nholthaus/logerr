@@ -3,6 +3,7 @@
 #-------------------------------------------------------------------------------
 
 cmake_minimum_required(VERSION 3.16)
+cmake_host_system_information(RESULT BUILD_HOSTNAME QUERY HOSTNAME)
 
 #-------------------------------------------------------------------------------
 #	PROJECT SETTINGS
@@ -31,7 +32,6 @@ list(APPEND HEADER_FILES
 
 # .cpp files
 list(APPEND SOURCE_FILES
-        src/backtraceSymbols.cpp
         src/LogFileWriter.cpp
         src/LogStream.cpp
         src/StackTrace.cpp
@@ -41,9 +41,12 @@ list(APPEND SOURCE_FILES
         ${CMAKE_CURRENT_BINARY_DIR}/appinfo.cpp
         )
 
-if (MSVC)
-    list(APPEND SOURCE_FILES ${HEADER_FILES})
-endif ()
+
+list(APPEND SOURCE_FILES ${HEADER_FILES})
+if(NOT WIN32)
+#    list(APPEND SOURCE_FILES src/backtraceSymbols.cpp)
+endif()
+
 
 #-------------------------------------------------------------------------------
 #	BFD SETTINGS
@@ -52,7 +55,7 @@ endif ()
 if (NOT WIN32)
     find_package(Bfd REQUIRED)
     if (NOT LIBBFD_FOUND)
-        message(FATAL_ERROR "Install binutils using your systems package manager (on ubuntu: `sudo apt install binutils-dev`)")
+        message(FATAL_ERROR "Install binutils using your systems package manager (on ubuntu: `sudo apt install binutils-dev libiberty-dev`)")
     endif ()
 endif ()
 
@@ -68,6 +71,10 @@ if (MSVC)
 elseif (CMAKE_COMPILER_IS_GNUCXX)
     add_compile_options(-std=c++17)
 endif (MSVC)
+
+if (BUILD_WITH_QT)
+    add_compile_definitions(BUILD_WITH_QT)
+endif (BUILD_WITH_QT)
 
 #-------------------------------------------------------------------------------
 #	CONFIGURATION
@@ -96,9 +103,17 @@ configure_file(appinfo.cpp.in appinfo.cpp @ONLY NEWLINE_STYLE UNIX)
 #	ADDITIONAL LIBRARIES
 #-------------------------------------------------------------------------------
 
-if (NOT WIN32)
-    list(APPEND LIBRARIES bfd)
-endif (NOT WIN32)
+if (WIN32)
+    list(APPEND LIBRARIES wsock32 ws2_32)
+else (WIN32)
+#    list(APPEND LIBRARIES bfd)
+endif (WIN32)
+
+if (BUILD_WITH_QT)
+    list(APPEND LIBRARIES Qt5::Core)
+endif (BUILD_WITH_QT)
+
+list(APPEND LIBRARIES gitinfo)
 
 #-------------------------------------------------------------------------------
 #	GENERATE EXECUTABLE
@@ -114,10 +129,4 @@ add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES} ${RESOURCES})
 target_link_libraries(${PROJECT_NAME} ${LIBRARIES})
 
 # include directories
-set_target_properties(${PROJECT_NAME} PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_BINARY_DIR};${CMAKE_BINARY_DIR}")
-
-#-------------------------------------------------------------------------------
-#	ADDITIONAL DEPENDENCIES
-#-------------------------------------------------------------------------------
-
-add_dependencies(${PROJECT_NAME} gitInfo)
+set_target_properties(${PROJECT_NAME} PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_BINARY_DIR}")

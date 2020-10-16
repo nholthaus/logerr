@@ -27,7 +27,7 @@ void stackTraceSIGSEGVQt(int sig)
 	time += "    Crash Time   : " + QDateTime::currentDateTime().toString() + "\n";
 	time += "\n";
 
-	QString sDetails = QString("%1 Crashed! :'(").arg(QAPPINFO::name()) + time + QAPPINFO::systemDetails() + QString("STACK TRACE:\n\n") + trace;
+	QString sDetails = QString("%1 Crashed! :'(").arg(QAPPINFO::name()) + time + QAPPINFO::systemDetails() + QString("STACK TRACE:\n\n") + trace.data();
 	LOGERR << sDetails.toLocal8Bit().constData() << std::endl;
 
 	// make sure the directory exists

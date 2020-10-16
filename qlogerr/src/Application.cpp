@@ -1,7 +1,10 @@
+//----------------------------
+//  INCLUDES
+//----------------------------
+
 #include <Application.h>
 #include <logerr>
 #include <ExceptionDialog.h>
-#include <QDebug>
 
 //--------------------------------------------------------------------------------------------------
 //	Application (public ) []
@@ -29,9 +32,9 @@ bool Application::notify(QObject* object, QEvent* event)
 
 	try
 	{
-		retVal = QApplication::notify(object, event); 
+		retVal = QApplication::notify(object, event);
 
-		// rethrow exceptions from threads 
+		// rethrow exceptions from threads
 		std::exception_ptr exceptionPtr = g_exceptionPtr;
 		g_exceptionPtr = nullptr;
 
@@ -62,11 +65,12 @@ bool Application::notify(QObject* object, QEvent* event)
 		LOGERR << error << std::endl;
  		ExceptionDialog dialog(error, true);
  		dialog.exec();
- 
+
 		throw;
 	}
 
 	return retVal;
 }
 
+#include <moc_Application.cpp>
  
