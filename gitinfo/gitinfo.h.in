@@ -1,0 +1,48 @@
+//--------------------------------------------------------------------------------------------------
+// 
+///	@PROJECT	@APPLICATION_NAME@
+/// @BRIEF		git information
+///	@DETAILS	
+//
+//--------------------------------------------------------------------------------------------------
+//
+// ATTRIBUTION:
+// Parts of this work have been adapted from: 
+//
+//--------------------------------------------------------------------------------------------------
+// 
+// Copyright (c) 2020 Nic Holthaus. All Rights Reserved.
+// 
+//--------------------------------------------------------------------------------------------------
+//
+//	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+//	XXXX																						XXXX
+//	XXXX						WARNING: THIS IS A GENERATED FILE								XXXX
+//	XXXX						ABANDON ALL HOPE YE WHO EDIT HERE								XXXX
+//	XXXX																						XXXX
+//	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX	
+// 
+//--------------------------------------------------------------------------------------------------
+
+#ifndef gitinfo_h__
+#define gitinfo_h__
+
+#include <string>
+
+namespace git
+{
+	// Git Info
+	const std::string branch("@GIT_BRANCH@");
+	const std::string commitShort("@GIT_COMMIT_SHORT@");
+	const std::string commitLong("@GIT_COMMIT_LONG@");
+	const std::string tag("@GIT_TAG@");
+	const std::string dirty("@GIT_DIRTY_FLAG@");
+	const std::string dirtyString("@GIT_DIRTY_STRING@");
+	const std::string origin("@GIT_ORIGIN@");
+	const std::string directory("@GIT_DIRECTORY@");
+	const std::string repo("@GIT_REPO@");
+	const std::string user("@GIT_USER@");
+	const std::string email("@GIT_EMAIL@");
+}
+
+#endif // gitinfo_h__
