@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.16)
 #	PROJECT SETTINGS
 #-------------------------------------------------------------------------------
 
-PROJECT(gitInfo)
+PROJECT(gitinfo)
 
 #-------------------------------------------------------------------------------
 #	GIT SETTINGS
@@ -18,11 +18,11 @@ PROJECT(gitInfo)
 # a dummy output that's not actually produced, in order
 # to force version.cmake to always be re-run before the build
 ADD_CUSTOM_TARGET(
-        gitInfo-cfg ALL
+        gitinfo-cfg ALL
         COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_CURRENT_SOURCE_DIR}/gitInfo.h.in
-        ${CMAKE_CURRENT_BINARY_DIR}/gitInfo.h.in
-        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_SOURCE_DIR}/cmake/gitInfo.cmake
+        ${CMAKE_CURRENT_SOURCE_DIR}/gitinfo.h.in
+        ${CMAKE_CURRENT_BINARY_DIR}/gitinfo.h.in
+        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/gitinfo.cmake
 )
 
 #-------------------------------------------------------------------------------
@@ -42,4 +42,4 @@ INCLUDE(InstallRequiredSystemLibraries)
 #	ADDITIONAL DEPENDENCIES
 #-------------------------------------------------------------------------------
 
-add_dependencies(${PROJECT_NAME} gitInfo-cfg)
+add_dependencies(${PROJECT_NAME} gitinfo-cfg)

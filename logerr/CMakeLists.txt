@@ -77,7 +77,9 @@ if (BUILD_WITH_QT)
     list(APPEND LIBRARIES Qt5::Core)
 endif (BUILD_WITH_QT)
 
-list(APPEND LIBRARIES Threads::Threads)
+list(APPEND LIBRARIES
+        gitinfo
+        Threads::Threads)
 
 #-------------------------------------------------------------------------------
 #	GENERATE EXECUTABLE
@@ -101,9 +103,3 @@ if (WIN32)
 else ()
     set_target_properties(${PROJECT_NAME} PROPERTIES INTERFACE_COMPILE_OPTIONS -g)
 endif ()
-
-#-------------------------------------------------------------------------------
-#	ADDITIONAL DEPENDENCIES
-#-------------------------------------------------------------------------------
-
-add_dependencies(${PROJECT_NAME} gitinfo)

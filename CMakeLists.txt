@@ -22,7 +22,7 @@ set(APPLICATION_ORGANIZATION "Company Name" CACHE STRING "Set this value to your
 #	PROJECT SETTINGS
 #-------------------------------------------------------------------------------
 
-project(logerr)
+project(liblogerr)
 
 #-------------------------------------------------------------------------------
 #	Qt SETTINGS
@@ -53,7 +53,7 @@ if (BUILD_WITH_QT)
 
     # Setup the cmake prefix path so Qt can be found. Use the QTDIR variable if defined
     if (DEFINED ENV{QTDIR})
-        set(QTDIR $ENV{QTDIR} CACHE STRING "Qt install path")
+        set(QTDIR $ENV{QTDIR} CACHE STRING "Qt install path" FORCE)
     else ()
         MESSAGE(STATUS "`QTDIR` environment variable not set.")
         if (WIN32)
@@ -63,7 +63,6 @@ if (BUILD_WITH_QT)
         endif ()
     endif ()
 
-    set(QTDIR $ENV{QTDIR} CACHE STRING "Qt install path")
     list(APPEND CMAKE_PREFIX_PATH ${QTDIR})
 
     # Find the necessary Qt5 modules
