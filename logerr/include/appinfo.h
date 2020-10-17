@@ -38,6 +38,8 @@
 //----------------------------------------------------------------------------------------------------------------------
 namespace APPINFO
 {
+	void setName(const std::string& name);
+
 	// Application Info
 	std::string name();
 	std::string organization();
