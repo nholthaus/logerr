@@ -77,6 +77,7 @@ namespace APPINFO
 	std::string hostProductVersion();
 
 	// Path Info
+	std::string home();
 	std::string appDataDir();
 	std::string logDir();
 	std::string crashDumpDir();

@@ -87,7 +87,7 @@ LogFileWriter::LogFileWriter(std::string logFilePath)
 		                       // to just write to `std::cerr`.
 		                       bool error = false;
 
-		                       if (!std::filesystem::create_directories(APPINFO::logDir()))
+		                       if (!std::filesystem::exists(APPINFO::logDir()) && !std::filesystem::create_directories(APPINFO::logDir()))
 		                       {
 			                       std::cerr << '[' << TimestampLite() << "] [ERROR]    Failed to `mkpath` to the log directory: "
 			                                 << APPINFO::logDir() << std::endl;

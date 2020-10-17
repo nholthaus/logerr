@@ -3,7 +3,6 @@
 #-------------------------------------------------------------------------------
 
 cmake_minimum_required(VERSION 3.16)
-cmake_host_system_information(RESULT BUILD_HOSTNAME QUERY HOSTNAME)
 
 #-------------------------------------------------------------------------------
 #	PROJECT SETTINGS
@@ -41,61 +40,39 @@ list(APPEND SOURCE_FILES
         ${CMAKE_CURRENT_BINARY_DIR}/appinfo.cpp
         )
 
+if (MSVC)
+    list(APPEND SOURCE_FILES ${HEADER_FILES})
+else ()
+    list(APPEND SOURCE_FILES src/backtraceSymbols.cpp)
+endif ()
 
-list(APPEND SOURCE_FILES ${HEADER_FILES})
-if(NOT WIN32)
-#    list(APPEND SOURCE_FILES src/backtraceSymbols.cpp)
-endif()
+#-------------------------------------------------------------------------------
+#	GIT SETTINGS
+#-------------------------------------------------------------------------------
 
+# Add a custom command that produces version.cpp, plus
+# a dummy output that's not actually produced, in order
+# to force version.cmake to always be re-run before the build
+ADD_CUSTOM_TARGET(
+        gitInfo ALL
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/gitinfo.h.in ${CMAKE_CURRENT_BINARY_DIR}/gitinfo.h.in
+        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/../cmake/gitinfo.cmake
+)
 
 #-------------------------------------------------------------------------------
 #	BFD SETTINGS
 #-------------------------------------------------------------------------------
 
 if (NOT WIN32)
-    find_package(Bfd REQUIRED)
-    if (NOT LIBBFD_FOUND)
-        message(FATAL_ERROR "Install binutils using your systems package manager (on ubuntu: `sudo apt install binutils-dev libiberty-dev`)")
+    find_package(Bfd)
+    if (NOT Bfd_FOUND)
+        message(FATAL_ERROR "Bfd not found. Install binutils using your systems package manager (on ubuntu: `sudo apt install binutils-dev libiberty-dev`)")
     endif ()
 endif ()
 
 #-------------------------------------------------------------------------------
-#	COMPILER SETTINGS
-#-------------------------------------------------------------------------------
-
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_STANDARD 17)
-
-if (MSVC)
-    add_compile_options(/MP)
-elseif (CMAKE_COMPILER_IS_GNUCXX)
-    add_compile_options(-std=c++17)
-endif (MSVC)
-
-if (BUILD_WITH_QT)
-    add_compile_definitions(BUILD_WITH_QT)
-endif (BUILD_WITH_QT)
-
-#-------------------------------------------------------------------------------
 #	CONFIGURATION
 #-------------------------------------------------------------------------------
-
-set(APPLICATION_NAME ${TARGET_NAME})
-set(APPLICATION_VERSION ${VERSION})
-set(APPLICATION_ORGANIZATION "Menari Softworks")
-set(APPLICATION_ORGANIZATION_DOMAIN ${GIT_ORIGIN})
-
-set(IS_WIN false)
-set(IS_MAC false)
-set(IS_LINUX false)
-
-if (WIN32)
-    set(IS_WIN true)
-elseif (APPLE)
-    set(IS_MAC true)
-elseif (UNIX AND NOT APPLE)
-    set(IS_LINUX true)
-endif ()
 
 configure_file(appinfo.cpp.in appinfo.cpp @ONLY NEWLINE_STYLE UNIX)
 
@@ -106,14 +83,14 @@ configure_file(appinfo.cpp.in appinfo.cpp @ONLY NEWLINE_STYLE UNIX)
 if (WIN32)
     list(APPEND LIBRARIES wsock32 ws2_32)
 else (WIN32)
-#    list(APPEND LIBRARIES bfd)
+    list(APPEND LIBRARIES bfd)
 endif (WIN32)
 
 if (BUILD_WITH_QT)
     list(APPEND LIBRARIES Qt5::Core)
 endif (BUILD_WITH_QT)
 
-list(APPEND LIBRARIES gitinfo)
+list(APPEND LIBRARIES Threads::Threads)
 
 #-------------------------------------------------------------------------------
 #	GENERATE EXECUTABLE
@@ -123,10 +100,23 @@ list(APPEND LIBRARIES gitinfo)
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_BINARY_DIR}")
 
 # Generate the executable
-add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES} ${RESOURCES})
+add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES})
 
 # link libraries
-target_link_libraries(${PROJECT_NAME} ${LIBRARIES})
+target_link_libraries(${PROJECT_NAME} PUBLIC ${LIBRARIES})
 
 # include directories
 set_target_properties(${PROJECT_NAME} PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_BINARY_DIR}")
+
+# Target properties required to generate a stack trace
+if (WIN32)
+    set_target_properties(${PROJECT_NAME} PROPERTIES INTERFACE_COMPILE_OPTIONS "/Zi" INTERFACE_LINK_OPTIONS "/DEBUG;/OPT:REF;/OPT:ICF")
+else ()
+    set_target_properties(${PROJECT_NAME} PROPERTIES INTERFACE_COMPILE_OPTIONS -g)
+endif ()
+
+#-------------------------------------------------------------------------------
+#	ADDITIONAL DEPENDENCIES
+#-------------------------------------------------------------------------------
+
+add_dependencies(${PROJECT_NAME} gitInfo)

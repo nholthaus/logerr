@@ -73,8 +73,7 @@ public:
 	operator std::string() const;
 
 private:
-	static const size_t MAX_FRAMES         = 64;      ///< Arbitrary.
-	static const size_t FUNCTION_NAME_SIZE = 2048;    ///< Arbitrary.
+	static const size_t MAX_FRAMES = 256;    ///< Arbitrary.
 
 	std::string m_value;
 };

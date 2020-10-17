@@ -48,10 +48,10 @@
 // std
 #include <functional>
 #include <iostream>
+#include <map>
 #include <mutex>
 #include <streambuf>
 #include <string>
-#include <vector>
 
 //--------------------------------------------------------------------------------------------------
 //	LogStream
@@ -63,10 +63,12 @@ public:
 	~LogStream() override;
 
 	template<typename Function>
-	void registerLogFunction(Function&& function)
+	void registerLogFunction(std::string&& name, Function&& function)
 	{
-		m_callbacks.emplace_back(std::forward<Function>(function));
+		m_callbacks.emplace(std::forward<std::string>(name), std::forward<Function>(function));
 	}
+
+	void unregisterLogFunction(const std::string& name = "");
 
 protected:
 	int_type        overflow(int_type v) override;
@@ -74,10 +76,11 @@ protected:
 	void            log();
 
 private:
-	std::ostream&                                 m_stream;
-	std::streambuf*                               m_old_buf;
-	std::vector<std::function<void(std::string)>> m_callbacks;
-	static thread_local std::string               m_string;
+	std::ostream&                                           m_stream;
+	std::streambuf*                                         m_old_buf;
+	std::map<std::string, std::function<void(std::string)>> m_callbacks;
+	std::mutex                                              m_callbackMutex;
+	static thread_local std::string                         m_string;
 };
 
 #endif    // LogStream_h_

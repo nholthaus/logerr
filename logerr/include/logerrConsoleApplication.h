@@ -61,49 +61,56 @@
 
 /// Place at the very beginning of the `main` function.
 #ifndef LOGERR_CONSOLE_APP_BEGIN
-#define LOGERR_CONSOLE_APP_BEGIN                                                                                               \
-	std::signal(SIGSEGV, stackTraceSIGSEGV);                                                                                   \
-                                                                                                                               \
-	int code       = 0;                                                                                                        \
-	g_mainThreadID = std::this_thread::get_id();                                                                               \
-                                                                                                                               \
-	LogFileWriter logFileWriter;                                                                                               \
-	LogStream     logStream(std::cout);                                                                                        \
-                                                                                                                               \
-	logStream.registerLogFunction(std::bind(&logFileWriter, &LogFileWriter::write));                                           \
-                                                                                                                               \
-	LOGINFO << logerr::printable(APPINFO::name()) << ' ' << logerr::printable(APPINFO::version()) << " Started." << std::endl; \
-                                                                                                                               \
-	try                                                                                                                        \
+#define LOGERR_CONSOLE_APP_BEGIN                                                         \
+	std::signal(SIGSEGV, stackTraceSIGSEGV);                                             \
+                                                                                         \
+	int code       = 0;                                                                  \
+	g_mainThreadID = std::this_thread::get_id();                                         \
+                                                                                         \
+	LogFileWriter logFileWriter;                                                         \
+	LogStream     logStream(std::cout);                                                  \
+                                                                                         \
+	logStream.registerLogFunction(std::bind(&logFileWriter, &LogFileWriter::write));     \
+                                                                                         \
+	LOGINFO << APPINFO::name() << ' ' << APPINFO::version() << " Started." << std::endl; \
+                                                                                         \
+	try                                                                                  \
 	{
 #endif
 
 /// Place at the very end of the `main` function.
 #ifndef LOGERR_CONSOLE_APP_END
-#define LOGERR_CONSOLE_APP_END                                                                           \
-	}                                                                                                    \
-	catch (StackTraceException & e)                                                                      \
-	{                                                                                                    \
-		LOGERR << e.what() << std::endl;                                                                 \
-		LOGINFO << logerr::printable(APPINFO::name()) << " exiting due to fatal error..." << std::endl;  \
-		code = 2;                                                                                        \
-	}                                                                                                    \
-	catch (std::exception & e)                                                                           \
-	{                                                                                                    \
-		LOGERR << "ERROR: Caught unhandled exception -  " << e.what() << std::endl;                      \
-		LOGINFO << logerr::printable(APPINFO::name()) << " exiting due to fatal error..." << std::endl;  \
-		code = 2;                                                                                        \
-	}                                                                                                    \
-	catch (...)                                                                                          \
-	{                                                                                                    \
-		LOGERR << "ERROR: An unknown fatal error occurred. " << std::endl;                               \
-		LOGINFO << logerr::printable(APPINFO::name()) << " exiting due to fatal error..." << std::endl;  \
-		code = 2;                                                                                        \
-	}                                                                                                    \
-                                                                                                         \
-	if (code == 0) LOGINFO << logerr::printable(APPINFO::name()) << " Exited Successfully" << std::endl; \
-                                                                                                         \
-	return code;                                                                                         \
+#define LOGERR_CONSOLE_APP_END                                                        \
+	/* rethrow exceptions from threads*/                                              \
+	std::exception_ptr exceptionPtr = g_exceptionPtr;                                 \
+	g_exceptionPtr                  = nullptr;                                        \
+                                                                                      \
+	if (exceptionPtr)                                                                 \
+	{                                                                                 \
+		std::rethrow_exception(exceptionPtr);                                         \
+	}                                                                                 \
+	catch (StackTraceException & e)                                                   \
+	{                                                                                 \
+		LOGERR << e.what() << std::endl;                                              \
+		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;  \
+		code = 2;                                                                     \
+	}                                                                                 \
+	catch (std::exception & e)                                                        \
+	{                                                                                 \
+		LOGERR << "ERROR: Caught unhandled exception -  " << e.what() << std::endl;   \
+		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;  \
+		code = 2;                                                                     \
+	}                                                                                 \
+	catch (...)                                                                       \
+	{                                                                                 \
+		LOGERR << "ERROR: An unknown fatal error occurred. " << std::endl;            \
+		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;  \
+		code = 2;                                                                     \
+	}                                                                                 \
+                                                                                      \
+	if (code == 0) LOGINFO << APPINFO::name() << " Exited Successfully" << std::endl; \
+                                                                                      \
+	return code;                                                                      \
 	}
 #endif
 

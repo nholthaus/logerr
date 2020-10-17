@@ -1,4 +1,4 @@
-#include <logDock.h>
+#include <LogDock.h>
 #include <LogModel.h>
 #include <LogProxyModel.h>
 #include <logerr>

@@ -29,9 +29,9 @@
 //----------------------------
 
 // clang-format off
-constexpr bool IS_WIN   = false;
-constexpr bool IS_MAC   = false;
-constexpr bool IS_LINUX = true;
+constexpr bool IS_WIN   = @IS_WIN@;
+constexpr bool IS_MAC   = @IS_MAC@;
+constexpr bool IS_LINUX = @IS_LINUX@;
 // clang-format on
 
 //----------------------------
@@ -284,12 +284,23 @@ string APPINFO::hostProductVersion()
 }
 
 // Path Info
+string APPINFO::home()
+{
+	if constexpr (IS_LINUX)
+		return getenv("HOME");
+	else if constexpr (IS_MAC)
+		return getenv("HOME");
+	else if constexpr (IS_WIN)
+		return getenv("HOMEPATH");
+}
+
+// Path Info
 string APPINFO::appDataDir()
 {
 	if constexpr (IS_LINUX)
-		return std::string("~/.local/share/").append(name()).append("/");
+		return home().append("/.local/share/").append(name()).append("/");
 	else if constexpr (IS_MAC)
-		return std::string("~/Library/Application Support/").append(name()).append("/");
+		return home().append("/Library/Application Support/").append(name()).append("/");
 	else if constexpr (IS_WIN)
 	{
 		std::string APPDATA = getenv("APPDATA");
@@ -299,16 +310,16 @@ string APPINFO::appDataDir()
 }
 string APPINFO::logDir()
 {
-	return appDataDir() + "/logs/";
+	return appDataDir() + "logs/";
 }
 string APPINFO::crashDumpDir()
 {
-	return appDataDir() + "/crashdumps/";
+	return appDataDir() + "crashdumps/";
 }
 string APPINFO::documentsDir()
 {
 	if constexpr (IS_LINUX || IS_MAC)
-		return "~/Documents/";
+		return home().append("/Documents/");
 	else if constexpr (IS_WIN)
 		return std::string("C:/Users/").append(getenv("USER")).append("/Documents/");
 }
@@ -317,16 +328,16 @@ string APPINFO::tempDir()
 	if constexpr (IS_LINUX)
 		return "/tmp";
 	else if constexpr (IS_MAC)
-		return "~/tmp";
+		return home().append("/tmp");
 	else if constexpr (IS_WIN)
 		return std::string(getenv("LOCALAPPDATA")).append("/Temp/");
 }
 string APPINFO::configDir()
 {
 	if constexpr (IS_LINUX)
-		return "~/.config/";
+		return home().append("/.config/");
 	else if constexpr (IS_MAC)
-		return "~/Library/Preferences/";
+		return home().append("/Library/Preferences/");
 	else if constexpr (IS_WIN)
 		return std::string(getenv("LOCALAPPDATA")).append(name());
 }

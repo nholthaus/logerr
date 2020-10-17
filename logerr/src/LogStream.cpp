@@ -60,9 +60,22 @@ std::streamsize LogStream::xsputn(const char* p, std::streamsize n)
 //----------------------------------------------------------------------------------------------------------------------
 void LogStream::log()
 {
-	for(auto & callback : m_callbacks)
+	std::unique_lock<std::mutex> lock(m_callbackMutex);
+	for(auto& [name, callback] : m_callbacks)
 	{
 		callback(m_string);
 	}
 	m_string.clear();
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+//  unregisterCallbacks (protected)
+//----------------------------------------------------------------------------------------------------------------------
+void LogStream::unregisterLogFunction(const std::string& name /*= ""*/)
+{
+	std::unique_lock<std::mutex> lock(m_callbackMutex);
+	if(name.empty())
+		m_callbacks.clear();
+	else
+		m_callbacks.erase(name);
 }
