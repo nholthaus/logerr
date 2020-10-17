@@ -47,19 +47,6 @@ else ()
 endif ()
 
 #-------------------------------------------------------------------------------
-#	GIT SETTINGS
-#-------------------------------------------------------------------------------
-
-# Add a custom command that produces version.cpp, plus
-# a dummy output that's not actually produced, in order
-# to force version.cmake to always be re-run before the build
-ADD_CUSTOM_TARGET(
-        gitInfo ALL
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/gitinfo.h.in ${CMAKE_CURRENT_BINARY_DIR}/gitinfo.h.in
-        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/../cmake/gitinfo.cmake
-)
-
-#-------------------------------------------------------------------------------
 #	BFD SETTINGS
 #-------------------------------------------------------------------------------
 
@@ -119,4 +106,4 @@ endif ()
 #	ADDITIONAL DEPENDENCIES
 #-------------------------------------------------------------------------------
 
-add_dependencies(${PROJECT_NAME} gitInfo)
+add_dependencies(${PROJECT_NAME} gitinfo)

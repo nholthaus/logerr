@@ -131,7 +131,9 @@ endif ()
 #	SUBDIRECTORIES
 #-------------------------------------------------------------------------------
 
+add_subdirectory(gitinfo)
+add_subdirectory(logerr)
+
 if (BUILD_WITH_QT)
     add_subdirectory(qlogerr)
 endif (BUILD_WITH_QT)
-add_subdirectory(logerr)
