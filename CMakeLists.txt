@@ -11,8 +11,12 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 #	CMAKE OPTIONS
 #-------------------------------------------------------------------------------
 
+# Turn this on to use with Qt applications - link against the qlogerr library
+# For plain C++, leave it off and link against logerr
 option(BUILD_WITH_QT "Build the Qt classes" OFF)
-set(APPLICATION_ORGANIZATION cache string "Company Name")
+
+# Set this value to your companies name
+set(APPLICATION_ORGANIZATION "Company Name" CACHE STRING "Set this value to your companies name")
 
 #-------------------------------------------------------------------------------
 #	PROJECT SETTINGS
