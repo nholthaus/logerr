@@ -19,6 +19,15 @@
 #include <iostream>
 #include <sstream>
 
+
+// NOTE: There are two different bfd interfaces, and you don't know which one you're going to have on your platform.
+// So, try to figure it out and call the right things.
+#ifdef bfd_section_flags
+#define BFD_INTERFACE_A
+#elif defined(bfd_set_section_flags)
+#define BFD_INTERFACE_B
+#endif
+
 class FileMatch
 {
 public:
@@ -252,14 +261,26 @@ void FileLineDesc::findAddressInSection(bfd* abfd, asection* section)
 	if (mFound)
 		return;
 
+#ifdef USE_OLD_BFD
+	if ((bfd_get_section_flags(abfd, section) & SEC_ALLOC) == 0)
+#else
 	if ((bfd_section_flags(section) & SEC_ALLOC) == 0)
+#endif
 		return;
 
+#ifdef USE_OLD_BFD
+	bfd_vma vma = bfd_section_vma(abfd, section);
+#else
 	bfd_vma vma = bfd_section_vma(section);
+#endif
 	if (mPc < vma)
 		return;
 
+#ifdef USE_OLD_BFD
+	bfd_size_type size = bfd_section_size(abfd, section);
+#else
 	bfd_size_type size = bfd_section_size(section);
+#endif
 	if (mPc >= (vma + size))
 		return;
 

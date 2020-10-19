@@ -55,6 +55,12 @@ if (NOT WIN32)
     if (NOT Bfd_FOUND)
         message(FATAL_ERROR "Bfd not found. Install binutils using your systems package manager (on ubuntu: `sudo apt install binutils-dev libiberty-dev`)")
     endif ()
+
+    include(CheckCXXSymbolExists)
+    check_cxx_symbol_exists(bfd_section_flags "bfd.h" HAS_BFD_SECTION_FLAGS)
+    if(NOT HAS_BFD_SECTION_FLAGS)
+        add_compile_definitions(USE_OLD_BFD)
+    endif()
 endif ()
 
 #-------------------------------------------------------------------------------
