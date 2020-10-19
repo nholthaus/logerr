@@ -77,8 +77,12 @@ LogFileWriter::LogFileWriter(std::string logFilePath)
 			                       auto currentDateTime = date::format("%FT%TZ", date::floor<std::chrono::milliseconds>(std::chrono::system_clock::now()));
 			                       currentDateTime.erase(std::remove(currentDateTime.begin(), currentDateTime.end(), ':'), currentDateTime.end());
 
+			                       std::string name = APPINFO::gitRepo();
+			                       if(name != APPINFO::name())
+				                       name.append("_").append(APPINFO::name());
+
 			                       std::ostringstream ss;
-			                       ss << APPINFO::logDir() << APPINFO::name() << "_" << currentDateTime << ".log.txt";
+			                       ss << APPINFO::logDir() << name << "_" << currentDateTime << ".log.txt";
 
 			                       logFilePath = ss.str();
 		                       }
