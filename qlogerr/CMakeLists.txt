@@ -19,7 +19,7 @@ list(APPEND HEADER_FILES
         include/qappinfo.h
         include/Application.h
         include/ExceptionDialog.h
-        include/LogDock.h
+        include/logDock.h
         include/logerrGuiApplication.h
         include/LogModel.h
         include/LogProxyModel.h
@@ -30,7 +30,7 @@ list(APPEND HEADER_FILES
 list(APPEND SOURCE_FILES
         src/Application.cpp
         src/ExceptionDialog.cpp
-        src/LogDock.cpp
+        src/logDock.cpp
         src/LogModel.cpp
         src/LogProxyModel.cpp
         src/StackTraceSIGSEGVQt.cpp
