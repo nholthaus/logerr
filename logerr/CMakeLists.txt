@@ -80,6 +80,8 @@ else (WIN32)
 endif (WIN32)
 
 if (BUILD_WITH_QT)
+    configure_file(../qlogerr/qappinfo.cpp.in qappinfo.cpp @ONLY NEWLINE_STYLE UNIX)
+    list(APPEND SOURCE_FILES ${CMAKE_CURRENT_BINARY_DIR}/qappinfo.cpp)
     list(APPEND LIBRARIES Qt5::Core)
 endif (BUILD_WITH_QT)
 
@@ -92,7 +94,8 @@ list(APPEND LIBRARIES
 #-------------------------------------------------------------------------------
 
 # include dirs
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_BINARY_DIR}")
+set(INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_BINARY_DIR};${CMAKE_CURRENT_SOURCE_DIR}/../qlogerr/include")
+include_directories(${INCLUDE_DIRS})
 
 # Generate the executable
 add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES})
@@ -101,7 +104,7 @@ add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES})
 target_link_libraries(${PROJECT_NAME} PUBLIC ${LIBRARIES})
 
 # include directories
-set_target_properties(${PROJECT_NAME} PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_BINARY_DIR}")
+set_target_properties(${PROJECT_NAME} PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${INCLUDE_DIRS})
 
 # Target properties required to generate a stack trace
 if (WIN32)
