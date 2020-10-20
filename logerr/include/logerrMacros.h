@@ -91,6 +91,16 @@ inline std::thread::id		g_mainThreadID;
 #define FATAL_ERR(msg) std::this_thread::get_id() == g_mainThreadID ? throw StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__, true) : g_exceptionPtr = std::make_exception_ptr(StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__, true));
 #endif
 
+// expects
+#ifndef EXPECTS
+#define EXPECTS(condition) if (!(condition)) { ERR("Pre-condition failed: " #condition); }
+#endif
+
+// ensures
+#ifndef ENSURES
+#define ENSURES(condition) if (!(condition)) { ERR("Post-condition failed: " #condition); }
+#endif
+
 // verify
 #ifndef VERIFY
 #define VERIFY(condition) ((!(condition)) ? qt_assert(#condition, __FILENAME__, __LINE__) : qt_noop())
