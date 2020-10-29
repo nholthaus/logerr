@@ -19,7 +19,6 @@
 #include <iostream>
 #include <sstream>
 
-
 // NOTE: There are two different bfd interfaces, and you don't know which one you're going to have on your platform.
 // So, try to figure it out and call the right things.
 #ifdef bfd_section_flags
@@ -241,12 +240,14 @@ std::vector<std::pair<std::string, std::string>> backtraceSymbols(void* const* a
 		if (match.mFile && strlen(match.mFile))
 		{
 			auto&& val = processFile(match.mFile, &addr, 1);
-			symbols.insert(symbols.begin(), std::make_move_iterator(val.begin()), std::make_move_iterator(val.end()));
+			if (!val.empty())
+				symbols.insert(symbols.begin(), std::make_move_iterator(val.begin()), std::make_move_iterator(val.end()));
 		}
 		else
 		{
 			auto&& val = processFile("/proc/self/exe", &addr, 1);
-			symbols.insert(symbols.begin(), std::make_move_iterator(val.begin()), std::make_move_iterator(val.end()));
+			if (!val.empty())
+				symbols.insert(symbols.begin(), std::make_move_iterator(val.begin()), std::make_move_iterator(val.end()));
 		}
 	}
 
@@ -284,7 +285,7 @@ void FileLineDesc::findAddressInSection(bfd* abfd, asection* section)
 	if (mPc >= (vma + size))
 		return;
 
-	char* pFilename = nullptr;
+	char* pFilename     = nullptr;
 	char* pFunctionname = nullptr;
 
 	mFound = bfd_find_nearest_line(abfd, section, mSyms, (mPc - vma), (const char**) &pFilename, (const char**) &pFunctionname, &mLine);

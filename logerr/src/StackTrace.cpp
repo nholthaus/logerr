@@ -114,6 +114,8 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 
 	// resolve addresses into strings containing
 	auto&& symbols = backtraceSymbols(trace, frames);
+	if (symbols.empty())
+		return;
 
 	// get max filename length
 	int maxFilenameLength = 0;
@@ -128,7 +130,7 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 
 	// iterate over the returned symbol lines. skip the first, it is the
 	// address of this function.
-	for (int i = 1 + ignore; i < frames; i++)
+	for (int i = 1 + ignore; i < symbols.size(); i++)
 	{
 		auto& [filename, functionName] = symbols[i];
 
@@ -191,7 +193,6 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 
 	// store values
 	m_value = value.str();
-
 #endif
 }
 
