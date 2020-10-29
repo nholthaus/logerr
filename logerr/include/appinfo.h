@@ -32,6 +32,7 @@
 //----------------------------
 
 #include <string>
+#include <filesystem>
 
 //----------------------------------------------------------------------------------------------------------------------
 //      NAMESPACE: APPINFO
@@ -39,6 +40,7 @@
 namespace APPINFO
 {
 	void setName(const std::string& name);
+	void setName(const std::filesystem::path& path)
 
 	// Application Info
 	std::string name();

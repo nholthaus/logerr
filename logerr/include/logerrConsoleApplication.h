@@ -54,17 +54,19 @@
 #include <StackTraceException.h>
 #include <StackTraceSIGSEGV.h>
 #include <appinfo.h>
-#include <timestampLite.h>
 #include <logerr>
+#include <timestampLite.h>
 
 //----------------------------
 //  MACROS
 //----------------------------
 
+#define LOGERR_CONSOLE_APP(argc, argv) \
+	APPINFO::setName(std::filesystem::path(argv[0]));
+
 /// Place at the very beginning of the `main` function.
 #ifndef LOGERR_CONSOLE_APP_BEGIN
 #define LOGERR_CONSOLE_APP_BEGIN                                                                                     \
-	APPINFO::setName(std::filesystem::path(argv[0]).filename().replace_extension("").string());                      \
 	std::signal(SIGSEGV, stackTraceSIGSEGV);                                                                         \
                                                                                                                      \
 	int code       = 0;                                                                                              \
@@ -103,18 +105,18 @@
 	{                                                                                 \
 		LOGERR << "ERROR: Caught unhandled exception -  " << e.what() << std::endl;   \
 		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;  \
-		code = 2;                                                                     \
+		code = 3;                                                                     \
 	}                                                                                 \
 	catch (...)                                                                       \
 	{                                                                                 \
 		LOGERR << "ERROR: An unknown fatal error occurred. " << std::endl;            \
 		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;  \
-		code = 2;                                                                     \
+		code = 4;                                                                     \
 	}                                                                                 \
                                                                                       \
 	if (code == 0) LOGINFO << APPINFO::name() << " Exited Successfully" << std::endl; \
                                                                                       \
-	return code;
+	std::exit(code);
 #endif
 
 #endif    //LOGERR_LOGERRCONSOLEAPPLICATION_H

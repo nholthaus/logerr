@@ -223,6 +223,7 @@ namespace APPINFO::detail
 //--------------------------------------------------------------------------------------------------
 
 void APPINFO::setName(const std::string& name) {detail::name = name; }
+void APPINFO::setName(const std::filesystem::path& path) {detail::name = path.filename().replace_extension("").string(); }
 
 // Application Info
 string APPINFO::name() { return detail::name; }
