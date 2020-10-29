@@ -61,8 +61,10 @@
 //  MACROS
 //----------------------------
 
-#define LOGERR_CONSOLE_APP(argc, argv) \
-	APPINFO::setName(std::filesystem::path(argv[0]));
+#define LOGERR_CONSOLE_APP(argc, argv)                \
+	APPINFO::setName(std::filesystem::path(argv[0])); \
+	g_argc = argc;                                    \
+	for (int i = 0; i < argc; ++i) g_argv.push_back(argv[i]);
 
 /// Place at the very beginning of the `main` function.
 #ifndef LOGERR_CONSOLE_APP_BEGIN
@@ -78,6 +80,11 @@
 	logStream.registerLogFunction("logFileWriter", [&logFileWriter](std::string str) { logFileWriter.write(str); }); \
                                                                                                                      \
 	LOGINFO << APPINFO::name() << ' ' << APPINFO::version() << " Started." << std::endl;                             \
+                                                                                                                     \
+	std::stringstream s;                                                                                             \
+	s << "Program args: ";                                                                                           \
+	for (auto& arg : g_argv) s << arg << " ";                                                                        \
+	LOGINFO << s.str() << std::endl;                                                                                 \
                                                                                                                      \
 	try                                                                                                              \
 	{
