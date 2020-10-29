@@ -40,7 +40,7 @@
 namespace APPINFO
 {
 	void setName(const std::string& name);
-	void setName(const std::filesystem::path& path)
+	void setName(const std::filesystem::path& path);
 
 	// Application Info
 	std::string name();
