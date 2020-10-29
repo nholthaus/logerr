@@ -45,6 +45,7 @@
 //	INCLUDES
 //-------------------------
 
+#include <atomic>
 #include <iostream>
 #include <thread>
 
@@ -57,6 +58,7 @@
 
 inline std::exception_ptr       g_exceptionPtr = nullptr;
 inline std::thread::id          g_mainThreadID;
+inline std::atomic_bool         g_mainThreadIDSet = false;
 inline int                      g_argc = 0;
 inline std::vector<std::string> g_argv;
 
@@ -85,12 +87,12 @@ inline std::vector<std::string> g_argv;
 
 // error
 #ifndef ERR
-#define ERR(msg) std::this_thread::get_id() == g_mainThreadID ? throw StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__) : g_exceptionPtr = std::make_exception_ptr(StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__));
+#define ERR(msg) (!g_mainThreadIDSet || std::this_thread::get_id() == g_mainThreadID) ? throw StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__) : g_exceptionPtr = std::make_exception_ptr(StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__));
 #endif
 
 // fatal error
 #ifndef FATAL_ERR
-#define FATAL_ERR(msg) std::this_thread::get_id() == g_mainThreadID ? throw StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__, true) : g_exceptionPtr = std::make_exception_ptr(StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__, true));
+#define FATAL_ERR(msg) (!g_mainThreadIDSet || std::this_thread::get_id() == g_mainThreadID) ? throw StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__, true) : g_exceptionPtr = std::make_exception_ptr(StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__, true));
 #endif
 
 // expects

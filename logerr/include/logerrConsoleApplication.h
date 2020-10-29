@@ -71,8 +71,9 @@
 #define LOGERR_CONSOLE_APP_BEGIN                                                                                     \
 	std::signal(SIGSEGV, stackTraceSIGSEGV);                                                                         \
                                                                                                                      \
-	int code       = 0;                                                                                              \
-	g_mainThreadID = std::this_thread::get_id();                                                                     \
+	int code          = 0;                                                                                           \
+	g_mainThreadID    = std::this_thread::get_id();                                                                  \
+	g_mainThreadIDSet = true;                                                                                        \
                                                                                                                      \
 	LogFileWriter logFileWriter;                                                                                     \
 	LogStream     logStream(std::cout);                                                                              \
