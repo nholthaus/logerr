@@ -124,7 +124,7 @@
                                                                                       \
 	if (code == 0) LOGINFO << APPINFO::name() << " Exited Successfully" << std::endl; \
                                                                                       \
-	std::exit(code);
+	return code;
 #endif
 
 #endif    //LOGERR_LOGERRCONSOLEAPPLICATION_H
