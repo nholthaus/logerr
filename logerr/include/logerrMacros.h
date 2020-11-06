@@ -48,6 +48,7 @@
 #include <atomic>
 #include <iostream>
 #include <thread>
+#include <vector>
 
 #include <appinfo.h>
 #include <StackTraceException.h>

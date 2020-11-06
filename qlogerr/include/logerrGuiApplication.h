@@ -53,7 +53,8 @@
 #include <QTimer>
 
 #include <Application.h>
-#include <LogDock.h>
+#include <logBlaster.h>
+#include <logDock.h>
 #include <LogFileWriter.h>
 #include <LogStream.h>
 #include <StackTraceException.h>
