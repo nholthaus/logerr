@@ -53,13 +53,13 @@
 #include <QTimer>
 
 #include <Application.h>
-#include <logBlaster.h>
-#include <logDock.h>
 #include <LogFileWriter.h>
 #include <LogStream.h>
 #include <StackTraceException.h>
 #include <StackTraceSIGSEGVQt.h>
 #include <appinfo.h>
+#include <logBlaster.h>
+#include <logDock.h>
 #include <qappinfo.h>
 #include <timestampLite.h>
 
@@ -99,8 +99,9 @@ namespace logerr
 	APPINFO::setName(std::filesystem::path(argv[0]).filename().replace_extension("").string());                      \
 	std::signal(SIGSEGV, stackTraceSIGSEGVQt);                                                                       \
                                                                                                                      \
-	int code       = 0;                                                                                              \
-	g_mainThreadID = std::this_thread::get_id();                                                                     \
+	int code          = 0;                                                                                           \
+	g_mainThreadID    = std::this_thread::get_id();                                                                  \
+	g_mainThreadIDSet = true;                                                                                        \
                                                                                                                      \
 	QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);                                                         \
                                                                                                                      \

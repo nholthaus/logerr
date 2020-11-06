@@ -70,6 +70,7 @@ if (BUILD_WITH_QT)
             Core
             Gui
             Widgets
+            Network
             )
 
     if (WIN32)
