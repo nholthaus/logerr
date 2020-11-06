@@ -19,21 +19,25 @@ list(APPEND HEADER_FILES
         include/qappinfo.h
         include/Application.h
         include/ExceptionDialog.h
+        include/logBlaster.h
         include/logDock.h
         include/logerrGuiApplication.h
         include/LogModel.h
         include/LogProxyModel.h
         include/StackTraceSIGSEGVQt.h
+        include/qCoreAppThread.h
         )
 
 # .cpp files
 list(APPEND SOURCE_FILES
         src/Application.cpp
         src/ExceptionDialog.cpp
+        src/logBlaster.cpp
         src/logDock.cpp
         src/LogModel.cpp
         src/LogProxyModel.cpp
         src/StackTraceSIGSEGVQt.cpp
+        src/qCoreAppThread.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/qappinfo.cpp
         )
 
@@ -55,6 +59,7 @@ list(APPEND LIBRARIES
         Qt5::Core
         Qt5::Gui
         Qt5::Widgets
+        Qt5::Network
         Threads::Threads
         )
 

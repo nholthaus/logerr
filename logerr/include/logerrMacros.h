@@ -49,6 +49,7 @@
 #include <iostream>
 #include <thread>
 
+#include <appinfo.h>
 #include <StackTraceException.h>
 #include <timestampLite.h>
 
@@ -68,16 +69,25 @@ inline std::vector<std::string> g_argv;
 
 // LOG FUNCTIONS
 #ifndef LOGERR
-#define LOGERR std::cout << '[' << TimestampLite() << "] [ERROR]    "
+#define LOGERR std::cout << '[' << TimestampLite() << "] [" << APPINFO::name() << "] [ERROR]    "
 #endif
 #ifndef LOGWARNING
-#define LOGWARNING std::cout << '[' << TimestampLite() << "] [WARNING]  "
+#define LOGWARNING std::cout << '[' << TimestampLite() << "] [" << APPINFO::name() << "] [WARNING]  "
 #endif
 #ifndef LOGDEBUG
-#define LOGDEBUG std::cout << '[' << TimestampLite() << "] [DEBUG]    "
+#define LOGDEBUG std::cout << '[' << TimestampLite() << "] [" << APPINFO::name() << "] [DEBUG]    "
 #endif
 #ifndef LOGINFO
-#define LOGINFO std::cout << '[' << TimestampLite() << "] [INFO]     "
+#define LOGINFO std::cout << '[' << TimestampLite() << "] [" << APPINFO::name() << "] [INFO]     "
+#endif
+
+// enable/disable logs
+#ifndef LOGERR_DISABLE
+#define LOGERR_DISABLE std::cout.setstate(std::ios::failbit)
+#endif
+
+#ifndef LOGERR_ENABLE
+#define LOGERR_ENABLE std::cout.clear()
 #endif
 
 // filename

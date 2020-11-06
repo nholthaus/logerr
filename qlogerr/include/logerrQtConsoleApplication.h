@@ -32,13 +32,13 @@
 //
 //--------------------------------------------------------------------------------------------------
 //
-/// @file	logerrGuiApplication.h
-/// @brief	Macro Definitions for use in Qt GUI applications
+/// @file	logerrQtConsoleApplication.h
+/// @brief	Macro Definitions for use in Qt console (command line) applications
 //
 //--------------------------------------------------------------------------------------------------
 
-#ifndef LOGERR_LOGERRGUIAPPLICATION_H
-#define LOGERR_LOGERRGUIAPPLICATION_H
+#ifndef LOGERR_LOGERRQTCONSOLEAPPLICATION_H
+#define LOGERR_LOGERRQTCONSOLEAPPLICATION_H
 
 //-------------------------
 //	INCLUDES
@@ -49,89 +49,62 @@
 #include <string_view>
 #include <thread>
 
-#include <QMainWindow>
-#include <QTimer>
-
-#include <Application.h>
-#include <LogDock.h>
+#include <logBlaster.h>
 #include <LogFileWriter.h>
 #include <LogStream.h>
 #include <StackTraceException.h>
-#include <StackTraceSIGSEGVQt.h>
+#include <StackTraceSIGSEGV.h>
 #include <appinfo.h>
-#include <qappinfo.h>
+#include <logerr>
 #include <timestampLite.h>
-
-//-------------------------
-//	HELPER FUNCTIONS
-//-------------------------
-
-namespace logerr
-{
-	template<class T>
-	constexpr std::string_view printable(const T& value)
-	{
-		if constexpr (std::is_same_v<QString, std::remove_cv_t<T>>) return value.toStdString();
-		else if constexpr (std::is_same_v<std::string, std::remove_cv_t<T>>)
-			return value;
-	}
-
-	static QMainWindow* getMainWindow()
-	{
-		foreach (QWidget* w, qApp->topLevelWidgets())
-			if (QMainWindow* mainWin = qobject_cast<QMainWindow*>(w))
-				return mainWin;
-		return nullptr;
-	}
-}    // namespace logerr
 
 //----------------------------
 //  MACROS
 //----------------------------
 
-// Run once the event loop starts
-#define RUN_ONCE_STARTED(expression) QTimer::singleShot(0, [&] { expression });
+#define LOGERR_QT_CONSOLE_APP(argc, argv)             \
+	APPINFO::setName(std::filesystem::path(argv[0])); \
+	g_argc = argc;                                    \
+	for (int i = 0; i < argc; ++i) g_argv.push_back(argv[i]);
 
 /// Place at the very beginning of the `main` function.
-#ifndef LOGERR_GUI_APP_BEGIN
-#define LOGERR_GUI_APP_BEGIN                                                                                         \
-	APPINFO::setName(std::filesystem::path(argv[0]).filename().replace_extension("").string());                      \
-	std::signal(SIGSEGV, stackTraceSIGSEGVQt);                                                                       \
+#ifndef LOGERR_QT_CONSOLE_APP_BEGIN
+#define LOGERR_QT_CONSOLE_APP_BEGIN                                                                                  \
+	std::signal(SIGSEGV, stackTraceSIGSEGV);                                                                         \
                                                                                                                      \
-	int code       = 0;                                                                                              \
-	g_mainThreadID = std::this_thread::get_id();                                                                     \
-                                                                                                                     \
-	QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);                                                         \
-                                                                                                                     \
-	Application app(argc, argv);                                                                                     \
-	app.setOrganizationName(QAPPINFO::organization());                                                               \
-	app.setOrganizationDomain(QAPPINFO::organizationDomain());                                                       \
-	app.setApplicationName(QAPPINFO::name());                                                                        \
-	app.setApplicationVersion(QAPPINFO::version());                                                                  \
+	int code          = 0;                                                                                           \
+	g_mainThreadID    = std::this_thread::get_id();                                                                  \
+	g_mainThreadIDSet = true;                                                                                        \
                                                                                                                      \
 	LogFileWriter logFileWriter;                                                                                     \
-	LogDock*      logDock = new LogDock;                                                                             \
 	LogBlaster    logBlaster;                                                                                        \
 	LogStream     logStream(std::cout);                                                                              \
                                                                                                                      \
 	logStream.registerLogFunction("logFileWriter", [&logFileWriter](std::string str) { logFileWriter.write(str); }); \
-	logStream.registerLogFunction("logDock", [&logDock](std::string str) { logDock->queueLogEntry(str); });          \
 	logStream.registerLogFunction("logBlaster", [&logBlaster](std::string str) { logBlaster.blast(str); });          \
                                                                                                                      \
 	LOGINFO << APPINFO::name() << ' ' << APPINFO::version() << " Started." << std::endl;                             \
+                                                                                                                     \
+	std::stringstream s;                                                                                             \
+	s << "Program args: ";                                                                                           \
+	for (auto& arg : g_argv) s << arg << " ";                                                                        \
+	LOGINFO << s.str() << std::endl;                                                                                 \
                                                                                                                      \
 	try                                                                                                              \
 	{
 #endif
 
 /// Place at the very end of the `main` function.
-#ifndef LOGERR_GUI_APP_END
-#define LOGERR_GUI_APP_END                                                            \
-	auto mw = logerr::getMainWindow();                                                \
-	if (mw) mw->addDockWidget(Qt::BottomDockWidgetArea, logDock);                     \
-	app.exec();                                                                       \
-	logStream.unregisterLogFunction("logDock");                                       \
-	logStream.unregisterLogFunction("logBlaster");                                    \
+#ifndef LOGERR_QT_CONSOLE_APP_END
+#define LOGERR_QT_CONSOLE_APP_END                                                     \
+	/* rethrow exceptions from threads*/                                              \
+	std::exception_ptr exceptionPtr = g_exceptionPtr;                                 \
+	g_exceptionPtr                  = nullptr;                                        \
+                                                                                      \
+	if (exceptionPtr)                                                                 \
+	{                                                                                 \
+		std::rethrow_exception(exceptionPtr);                                         \
+	}                                                                                 \
 	}                                                                                 \
 	catch (StackTraceException & e)                                                   \
 	{                                                                                 \
@@ -143,13 +116,13 @@ namespace logerr
 	{                                                                                 \
 		LOGERR << "ERROR: Caught unhandled exception -  " << e.what() << std::endl;   \
 		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;  \
-		code = 2;                                                                     \
+		code = 3;                                                                     \
 	}                                                                                 \
 	catch (...)                                                                       \
 	{                                                                                 \
 		LOGERR << "ERROR: An unknown fatal error occurred. " << std::endl;            \
 		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;  \
-		code = 2;                                                                     \
+		code = 4;                                                                     \
 	}                                                                                 \
                                                                                       \
 	if (code == 0) LOGINFO << APPINFO::name() << " Exited Successfully" << std::endl; \
@@ -157,4 +130,4 @@ namespace logerr
 	return code;
 #endif
 
-#endif    //LOGERR_LOGERRGUIAPPLICATION_H
+#endif    //LOGERR_LOGERRQTCONSOLEAPPLICATION_H
