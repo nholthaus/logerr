@@ -54,6 +54,7 @@
 #include <StackTraceException.h>
 #include <StackTraceSIGSEGV.h>
 #include <appinfo.h>
+#include <logBlaster.h>
 #include <logerr>
 #include <timestampLite.h>
 
