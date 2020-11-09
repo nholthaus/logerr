@@ -113,12 +113,10 @@ namespace logerr
                                                                                                                      \
 	LogFileWriter logFileWriter;                                                                                     \
 	LogDock*      logDock = new LogDock;                                                                             \
-	LogBlaster    logBlaster;                                                                                        \
 	LogStream     logStream(std::cout);                                                                              \
                                                                                                                      \
 	logStream.registerLogFunction("logFileWriter", [&logFileWriter](std::string str) { logFileWriter.write(str); }); \
 	logStream.registerLogFunction("logDock", [&logDock](std::string str) { logDock->queueLogEntry(str); });          \
-	logStream.registerLogFunction("logBlaster", [&logBlaster](std::string str) { logBlaster.blast(str); });          \
                                                                                                                      \
 	LOGINFO << APPINFO::name() << ' ' << APPINFO::version() << " Started." << std::endl;                             \
                                                                                                                      \
@@ -133,7 +131,6 @@ namespace logerr
 	if (mw) mw->addDockWidget(Qt::BottomDockWidgetArea, logDock);                     \
 	app.exec();                                                                       \
 	logStream.unregisterLogFunction("logDock");                                       \
-	logStream.unregisterLogFunction("logBlaster");                                    \
 	}                                                                                 \
 	catch (StackTraceException & e)                                                   \
 	{                                                                                 \
