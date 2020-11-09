@@ -98,6 +98,23 @@ void LogProxyModel::setAcceptsTimestamps(bool val)
 }
 
 //--------------------------------------------------------------------------------------------------
+//	acceptsModules (public ) []
+//--------------------------------------------------------------------------------------------------
+bool LogProxyModel::acceptsModules() const
+{
+	return m_acceptsModules;
+}
+
+//--------------------------------------------------------------------------------------------------
+//	setAcceptsModules (public ) []
+//--------------------------------------------------------------------------------------------------
+void LogProxyModel::setAcceptsModules(bool val)
+{
+	m_acceptsModules = val;
+	invalidateFilter();
+}
+
+//--------------------------------------------------------------------------------------------------
 //	filterAcceptsRow (public ) []
 //--------------------------------------------------------------------------------------------------
 bool LogProxyModel::filterAcceptsRow(int source_row, const QModelIndex& source_parent) const
@@ -118,4 +135,14 @@ bool LogProxyModel::filterAcceptsRow(int source_row, const QModelIndex& source_p
 		return false;
 
 	return QSortFilterProxyModel::filterAcceptsRow(source_row, source_parent);
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+//      FUNCTION: less than []
+//----------------------------------------------------------------------------------------------------------------------
+bool LogProxyModel::lessThan(const QModelIndex& source_left, const QModelIndex& source_right) const
+{
+	QStringList leftData = sourceModel()->data(source_left).toStringList();
+	QStringList rightData = sourceModel()->data(source_right).toStringList();
+	return leftData.at(0) < rightData.at(0);
 }

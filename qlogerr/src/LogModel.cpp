@@ -17,7 +17,7 @@ using namespace std::chrono_literals;
 //------------------------------
 
 constexpr quintptr LOG_ENTRY		= -1;
-constexpr const char* regex			= R"(\s*?\[(.*?)\]\s*?\[(.*?)\]\s*?(.*?)\n(.*))";
+constexpr const char* regex			= R"(\s*?\[(.*?)\]\s*?\[(.*?)\]\s*?\[(.*?)\]\s*?(.*?)\n(.*))";
 
 //--------------------------------------------------------------------------------------------------
 //	LogModel (public ) []
@@ -33,7 +33,7 @@ LogModel::LogModel(QObject* parent)
 	m_parserThread = std::thread(std::bind(&LogModel::parse, this));
 
 	VERIFY(connect(m_updateTimer, &QTimer::timeout, this, &LogModel::appendRows));
-	m_updateTimer->start(500ms);
+	m_updateTimer->start(250ms);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -151,6 +151,8 @@ QVariant LogModel::data(const QModelIndex& index, int role /*= Qt::DisplayRole*/
 	case Qt::ForegroundRole:
 		if (column == Column::Timestamp && type == "INFO")
 			return QBrush(Qt::gray);
+		if (column == Column::Module && type == "INFO")
+			return QBrush(Qt::gray);
 		if (column == Column::Type && type == "INFO")
 			return QBrush(Qt::gray);
 		if (type == "ERROR")
@@ -236,6 +238,7 @@ void LogModel::appendRow(const QString& value)
 		// this can happen for raw cout writes that didn't use the macros.
 		QStringList valueList = value.split('\n');
 		m_logData.emplace_back(QString::fromStdString(TimestampLite()));
+		m_logData.back().append("unset_name");
 		m_logData.back().append("INFO");
 		m_logData.back().append(valueList.front().trimmed());
 		valueList.pop_front();
@@ -246,10 +249,11 @@ void LogModel::appendRow(const QString& value)
 	{
 		m_logData.emplace_back(match.captured(1));
 		m_logData.back().append(match.captured(2));
-		m_logData.back().append(match.captured(3).trimmed());
-		if (!match.captured(4).isEmpty())
+		m_logData.back().append(match.captured(3));
+		m_logData.back().append(match.captured(4).trimmed());
+		if (!match.captured(5).isEmpty())
 		{
-			QStringList details = match.captured(4).split('\n');
+			QStringList details = match.captured(5).split('\n');
 			for(auto& detail : details)
 				m_logData.back().append(detail.trimmed());
 		}			
@@ -316,6 +320,7 @@ void LogModel::parse()
 				// this can happen for raw cout writes that didn't use the macros.
 				QStringList valueList = value.split('\n');
 				parsedList.append(QString::fromStdString(TimestampLite()));
+				parsedList.append("unset_name");
 				parsedList.append("INFO");
 				parsedList.append(valueList.front().trimmed());
 				valueList.pop_front();
@@ -326,10 +331,11 @@ void LogModel::parse()
 			{
 				parsedList.append(match.captured(1));
 				parsedList.append(match.captured(2));
-				parsedList.append(match.captured(3).trimmed());
-				if (!match.captured(4).isEmpty())
+				parsedList.append(match.captured(3));
+				parsedList.append(match.captured(4).trimmed());
+				if (!match.captured(5).isEmpty())
 				{
-					QStringList details = match.captured(4).split('\n');
+					QStringList details = match.captured(5).split('\n');
 					for (auto& detail : details)
 						parsedList.append(detail.trimmed());
 				}

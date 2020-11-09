@@ -49,7 +49,6 @@
 #include <string_view>
 #include <thread>
 
-#include <logBlaster.h>
 #include <LogFileWriter.h>
 #include <LogStream.h>
 #include <StackTraceException.h>
@@ -77,11 +76,9 @@
 	g_mainThreadIDSet = true;                                                                                        \
                                                                                                                      \
 	LogFileWriter logFileWriter;                                                                                     \
-	LogBlaster    logBlaster;                                                                                        \
 	LogStream     logStream(std::cout);                                                                              \
                                                                                                                      \
 	logStream.registerLogFunction("logFileWriter", [&logFileWriter](std::string str) { logFileWriter.write(str); }); \
-	logStream.registerLogFunction("logBlaster", [&logBlaster](std::string str) { logBlaster.blast(str); });          \
                                                                                                                      \
 	LOGINFO << APPINFO::name() << ' ' << APPINFO::version() << " Started." << std::endl;                             \
                                                                                                                      \

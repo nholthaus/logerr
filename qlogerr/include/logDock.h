@@ -87,6 +87,7 @@ private slots:
 
 	void on_scrollbackBufferSize_changed();
 	void on_showTimestampsCheckBox_toggled();
+	void on_showModulesCheckBox_toggled();
 	void autoscroll();
 	void stableScroll();
 	void search(const QString& value);
@@ -109,6 +110,7 @@ private:
 	QCheckBox* m_debugCheckBox   = nullptr;
 
 	QCheckBox* m_showTimestampsCheckBox = nullptr;
+	QCheckBox* m_showModulesCheckBox    = nullptr;
 
 	QLabel*    m_scrollbackLabel    = nullptr;
 	QLineEdit* m_scrollbackLineEdit = nullptr;

@@ -76,8 +76,9 @@ public:
 	enum Column
 	{
 		Timestamp = 0,
-		Type      = 1,
-		Message   = 2,
+		Module    = 1,
+		Type      = 2,
+		Message   = 3,
 	};
 	Q_ENUM(Column);
 

@@ -1,6 +1,6 @@
-#include <logDock.h>
 #include <LogModel.h>
 #include <LogProxyModel.h>
+#include <logDock.h>
 #include <logerr>
 
 #include <QCheckBox>
@@ -26,27 +26,28 @@ Q_DECLARE_METATYPE(std::string);
 //	LogDock (public ) []
 //--------------------------------------------------------------------------------------------------
 LogDock::LogDock()
-	: QDockWidget("Log Window")
-	, m_logModel(new LogModel(this))
-	, m_logProxyModel(new LogProxyModel(this))
-	, m_logView(new QTreeView(this))
-	, m_topLevelWidget(new QFrame(this))
-	, m_topLevelLayout(new QVBoxLayout)
-	, m_settingsLayout(new QHBoxLayout)
-	, m_typesGroupbox(new QGroupBox("Show"))
-	, m_settingsGroupBox(new QGroupBox("Settings"))
-	, m_errorCheckBox(new QCheckBox("Errors"))
-	, m_warningCheckBox(new QCheckBox("Warnings"))
-	, m_infoCheckBox(new QCheckBox("Info"))
-	, m_debugCheckBox(new QCheckBox("Debug"))
-	, m_showTimestampsCheckBox(new QCheckBox("Timestamps"))
-	, m_scrollbackLabel(new QLabel("Scrollback Buffer: "))
-	, m_scrollbackLineEdit(new QLineEdit)
-	, m_autoscrollCheckBox(new QCheckBox("Autoscroll"))
-	, m_searchGroupBox(new QGroupBox("Search"))
-	, m_searchLineEdit(new QLineEdit)
-	, m_matchCaseButton(new QToolButton)
-	, m_regexButton(new QToolButton)
+    : QDockWidget("Log Window")
+    , m_logModel(new LogModel(this))
+    , m_logProxyModel(new LogProxyModel(this))
+    , m_logView(new QTreeView(this))
+    , m_topLevelWidget(new QFrame(this))
+    , m_topLevelLayout(new QVBoxLayout)
+    , m_settingsLayout(new QHBoxLayout)
+    , m_typesGroupbox(new QGroupBox("Show"))
+    , m_settingsGroupBox(new QGroupBox("Settings"))
+    , m_errorCheckBox(new QCheckBox("Errors"))
+    , m_warningCheckBox(new QCheckBox("Warnings"))
+    , m_infoCheckBox(new QCheckBox("Info"))
+    , m_debugCheckBox(new QCheckBox("Debug"))
+    , m_showTimestampsCheckBox(new QCheckBox("Timestamps"))
+    , m_showModulesCheckBox(new QCheckBox("Modules"))
+    , m_scrollbackLabel(new QLabel("Scrollback Buffer: "))
+    , m_scrollbackLineEdit(new QLineEdit)
+    , m_autoscrollCheckBox(new QCheckBox("Autoscroll"))
+    , m_searchGroupBox(new QGroupBox("Search"))
+    , m_searchLineEdit(new QLineEdit)
+    , m_matchCaseButton(new QToolButton)
+    , m_regexButton(new QToolButton)
 {
 	qRegisterMetaType<std::string>();
 
@@ -60,7 +61,7 @@ LogDock::LogDock()
 
 	m_settingsLayout->addWidget(m_typesGroupbox);
 	m_settingsLayout->addWidget(m_settingsGroupBox);
-	m_settingsLayout->setContentsMargins(0,0,0,0);
+	m_settingsLayout->setContentsMargins(0, 0, 0, 0);
 
 	m_typesGroupbox->setLayout(new QHBoxLayout);
 	m_typesGroupbox->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
@@ -69,12 +70,14 @@ LogDock::LogDock()
 	m_typesGroupbox->layout()->addWidget(m_infoCheckBox);
 	m_typesGroupbox->layout()->addWidget(m_debugCheckBox);
 	m_typesGroupbox->layout()->addWidget(m_showTimestampsCheckBox);
+	m_typesGroupbox->layout()->addWidget(m_showModulesCheckBox);
 
 	m_errorCheckBox->setChecked(true);
 	m_warningCheckBox->setChecked(true);
 	m_infoCheckBox->setChecked(true);
 	m_debugCheckBox->setChecked(true);
 	m_showTimestampsCheckBox->setChecked(true);
+	m_showModulesCheckBox->setChecked(true);
 	m_autoscrollCheckBox->setChecked(true);
 
 	m_settingsGroupBox->setLayout(new QHBoxLayout);
@@ -104,6 +107,7 @@ LogDock::LogDock()
 	m_logProxyModel->setSourceModel(m_logModel);
 	m_logProxyModel->setFilterKeyColumn(LogModel::Column::Message);
 	m_logProxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
+	m_logProxyModel->setDynamicSortFilter(true);
 
 	m_logView->setModel(m_logProxyModel);
 	m_logView->setStyle(QStyleFactory::create("fusion"));
@@ -112,21 +116,29 @@ LogDock::LogDock()
 	m_logView->setAllColumnsShowFocus(true);
 	m_logView->setUniformRowHeights(true);
 	m_logView->setAlternatingRowColors(true);
+	m_logView->setSortingEnabled(true);
 	m_logView->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
+	m_logView->header()->setSortIndicator(0, Qt::AscendingOrder);
 
 	VERIFY(connect(m_logModel, &QAbstractListModel::rowsInserted, this, &LogDock::autoscroll));
 	VERIFY(connect(m_logModel, &QAbstractListModel::rowsRemoved, this, &LogDock::stableScroll));
 
 	VERIFY(connect(m_showTimestampsCheckBox, &QCheckBox::toggled, this, &LogDock::on_showTimestampsCheckBox_toggled));
+	VERIFY(connect(m_showModulesCheckBox, &QCheckBox::toggled, this, &LogDock::on_showModulesCheckBox_toggled));
 	VERIFY(connect(m_scrollbackLineEdit, &QLineEdit::textChanged, this, &LogDock::on_scrollbackBufferSize_changed));
 
-	VERIFY(connect(m_errorCheckBox, &QCheckBox::toggled, [this] { m_logProxyModel->setAcceptsErrors(m_errorCheckBox->isChecked()); }));
-	VERIFY(connect(m_warningCheckBox, &QCheckBox::toggled, [this] { m_logProxyModel->setAcceptsWarnings(m_warningCheckBox->isChecked()); }));
-	VERIFY(connect(m_infoCheckBox, &QCheckBox::toggled, [this] { m_logProxyModel->setAcceptsInfo(m_infoCheckBox->isChecked()); }));
-	VERIFY(connect(m_debugCheckBox, &QCheckBox::toggled, [this] { m_logProxyModel->setAcceptsDebug(m_debugCheckBox->isChecked()); }));
+	VERIFY(connect(m_errorCheckBox, &QCheckBox::toggled, [this]
+	               { m_logProxyModel->setAcceptsErrors(m_errorCheckBox->isChecked()); }));
+	VERIFY(connect(m_warningCheckBox, &QCheckBox::toggled, [this]
+	               { m_logProxyModel->setAcceptsWarnings(m_warningCheckBox->isChecked()); }));
+	VERIFY(connect(m_infoCheckBox, &QCheckBox::toggled, [this]
+	               { m_logProxyModel->setAcceptsInfo(m_infoCheckBox->isChecked()); }));
+	VERIFY(connect(m_debugCheckBox, &QCheckBox::toggled, [this]
+	               { m_logProxyModel->setAcceptsDebug(m_debugCheckBox->isChecked()); }));
 
 	VERIFY(connect(m_searchLineEdit, &QLineEdit::textChanged, this, &LogDock::search));
-	VERIFY(connect(m_matchCaseButton, &QToolButton::clicked, [this](bool checked) { checked ? m_logProxyModel->setFilterCaseSensitivity(Qt::CaseSensitive) : m_logProxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive); }));
+	VERIFY(connect(m_matchCaseButton, &QToolButton::clicked, [this](bool checked)
+	               { checked ? m_logProxyModel->setFilterCaseSensitivity(Qt::CaseSensitive) : m_logProxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive); }));
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -134,7 +146,6 @@ LogDock::LogDock()
 //--------------------------------------------------------------------------------------------------
 LogDock::~LogDock()
 {
-
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -158,7 +169,15 @@ void LogDock::on_scrollbackBufferSize_changed()
 //--------------------------------------------------------------------------------------------------
 void LogDock::on_showTimestampsCheckBox_toggled()
 {
-	m_logView->setColumnHidden(0, !m_showTimestampsCheckBox->isChecked());
+	m_logView->setColumnHidden(LogModel::Column::Timestamp, !m_showTimestampsCheckBox->isChecked());
+}
+
+//--------------------------------------------------------------------------------------------------
+//	on_showModulesCheckBox_toggled (private ) []
+//--------------------------------------------------------------------------------------------------
+void LogDock::on_showModulesCheckBox_toggled()
+{
+	m_logView->setColumnHidden(LogModel::Column::Module, !m_showModulesCheckBox->isChecked());
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -178,9 +197,9 @@ void LogDock::stableScroll()
 	if (!m_autoscrollCheckBox->isChecked())
 	{
 		QScrollBar* verticalScrollBar = m_logView->verticalScrollBar();
-		bool bScrolledToTop = verticalScrollBar->value() == verticalScrollBar->minimum();
-		int iRowIndex = m_logView->indexAt(QPoint(8, 8)).row();
-		int iRowCount = m_logView->model()->rowCount();
+		bool        bScrolledToTop    = verticalScrollBar->value() == verticalScrollBar->minimum();
+		int         iRowIndex         = m_logView->indexAt(QPoint(8, 8)).row();
+		int         iRowCount         = m_logView->model()->rowCount();
 
 		// move scroll bar to keep current items in view (if not scrolled to the top)
 		if (!bScrolledToTop)
@@ -201,4 +220,3 @@ void LogDock::search(const QString& value)
 	else
 		m_logProxyModel->setFilterWildcard(value);
 }
-

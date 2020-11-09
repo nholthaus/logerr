@@ -14,6 +14,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 # Turn this on to use with Qt applications - link against the qlogerr library
 # For plain C++, leave it off and link against logerr
 option(BUILD_WITH_QT "Build the Qt classes" OFF)
+option(BUILD_EXAMPLE "Build the example UI" OFF)
 
 # Set this value to your companies name
 set(APPLICATION_ORGANIZATION "Company Name" CACHE STRING "Set this value to your companies name")
@@ -140,4 +141,7 @@ add_subdirectory(logerr)
 
 if (BUILD_WITH_QT)
     add_subdirectory(qlogerr)
+    if(BUILD_EXAMPLE)
+        add_subdirectory(example)
+    endif(BUILD_EXAMPLE)
 endif (BUILD_WITH_QT)

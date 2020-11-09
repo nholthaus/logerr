@@ -61,25 +61,28 @@ class LogProxyModel : public QSortFilterProxyModel
 {
 public:
 
-	LogProxyModel(QObject* parent = nullptr);
+	explicit LogProxyModel(QObject* parent = nullptr);
 	virtual ~LogProxyModel();
 	
 	
-	bool acceptsErrors() const;
-	bool acceptsWarnings() const;
-	bool acceptsInfo() const;
-	bool acceptsDebug() const;
-	bool acceptsTimestamps() const;
+	[[nodiscard]] bool acceptsErrors() const;
+	[[nodiscard]] bool acceptsWarnings() const;
+	[[nodiscard]] bool acceptsInfo() const;
+	[[nodiscard]] bool acceptsDebug() const;
+	[[nodiscard]] bool acceptsTimestamps() const;
+	[[nodiscard]] bool acceptsModules() const;
 
 	void setAcceptsErrors(bool val);
 	void setAcceptsWarnings(bool val);
 	void setAcceptsInfo(bool val);
 	void setAcceptsDebug(bool val);
 	void setAcceptsTimestamps(bool val);
+	void setAcceptsModules(bool val);
 
 protected:
 
-	virtual bool filterAcceptsRow(int source_row, const QModelIndex& source_parent) const override;
+	[[nodiscard]] bool filterAcceptsRow(int source_row, const QModelIndex& source_parent) const override;
+	bool               lessThan(const QModelIndex& source_left, const QModelIndex& source_right) const override;
 
 private:
 
@@ -88,6 +91,7 @@ private:
 	bool m_acceptsInfo = true;
 	bool m_acceptsDebug = true;
 	bool m_acceptsTimestamps = true;
+	bool m_acceptsModules = true;
 	QRegularExpression m_regex;
 };
 
