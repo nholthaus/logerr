@@ -1,6 +1,6 @@
 #include <LogModel.h>
-#include <timestampLite.h>
 #include <logerr>
+#include <timestampLite.h>
 
 #include <chrono>
 
@@ -16,17 +16,17 @@ using namespace std::chrono_literals;
 //	CONSTANTS
 //------------------------------
 
-constexpr quintptr LOG_ENTRY		= -1;
-constexpr const char* regex			= R"(\s*?\[(.*?)\]\s*?\[(.*?)\]\s*?\[(.*?)\]\s*?(.*?)\n(.*))";
+constexpr quintptr    LOG_ENTRY = -1;
+constexpr const char* regex     = R"(\s*?\[(.*?)\]\s*?\[(.*?)\]\s*?\[(.*?)\]\s*?(.*?)\n(.*))";
 
 //--------------------------------------------------------------------------------------------------
 //	LogModel (public ) []
 //--------------------------------------------------------------------------------------------------
 LogModel::LogModel(QObject* parent)
-	: QAbstractItemModel(parent)
-	, m_regex(regex)
-	, m_columns(QMetaEnum::fromType<Column>())
-	, m_updateTimer(new QTimer(this))
+    : QAbstractItemModel(parent)
+    , m_regex(regex)
+    , m_columns(QMetaEnum::fromType<Column>())
+    , m_updateTimer(new QTimer(this))
 {
 	m_regex.setPatternOptions(QRegularExpression::MultilineOption | QRegularExpression::DotMatchesEverythingOption);
 
@@ -113,7 +113,7 @@ bool LogModel::hasChildren(const QModelIndex& parent /*= QModelIndex()*/) const
 		return !m_logData.empty();
 	else if (parent.internalId() == LOG_ENTRY)
 		return m_logData[parent.row()].size() > columnCount();
-	else 
+	else
 		return false;
 }
 
@@ -125,47 +125,46 @@ QVariant LogModel::data(const QModelIndex& index, int role /*= Qt::DisplayRole*/
 	if (!index.isValid())
 		return QVariant();
 
-	int column = index.column();
-	int row = index.row();
-	int parentRow = index.parent().row() - m_numRemoved;
-	bool child = index.parent().isValid();
-	QString type = !child ? m_logData[row][Column::Type] : m_logData[parentRow][Column::Type];
+	int     column    = index.column();
+	int     row       = index.row();
+	int     parentRow = index.parent().row() - m_numRemoved;
+	bool    child     = index.parent().isValid();
+	QString type      = !child ? m_logData[row][Column::Type] : m_logData[parentRow][Column::Type];
 
 	QFont boldFont;
 	boldFont.setWeight(QFont::Bold);
 
 	switch (role)
 	{
-	case Qt::DisplayRole:
-		if (!child)
-			return m_logData[row][column];
-		else if (column < Column::Message)
-			return "";
-		else
-			return m_logData[parentRow][row + columnCount()];
-		break;
- 	case Qt::FontRole:
-		if (type != "INFO" && column != Column::Timestamp)
-			return boldFont;
-		return QVariant();
-	case Qt::ForegroundRole:
-		if (column == Column::Timestamp && type == "INFO")
-			return QBrush(Qt::gray);
-		if (column == Column::Module && type == "INFO")
-			return QBrush(Qt::gray);
-		if (column == Column::Type && type == "INFO")
-			return QBrush(Qt::gray);
-		if (type == "ERROR")
-			return QBrush(Qt::red);
-		if (type == "WARNING")
-			return QBrush("#a67c00");
-		if (type == "DEBUG")
-			return QBrush("#4E2A84");
-		return QBrush(Qt::black);
-	default:
-		return QVariant();
+		case Qt::DisplayRole:
+			if (!child)
+				return m_logData[row][column];
+			else if (column < Column::Message)
+				return "";
+			else
+				return m_logData[parentRow][row + columnCount()];
+			break;
+		case Qt::FontRole:
+			if (type != "INFO" && column != Column::Timestamp)
+				return boldFont;
+			return QVariant();
+		case Qt::ForegroundRole:
+			if (column == Column::Timestamp && type == "INFO")
+				return QBrush(Qt::gray);
+			if (column == Column::Module && type == "INFO")
+				return QBrush(Qt::gray);
+			if (column == Column::Type && type == "INFO")
+				return QBrush(Qt::gray);
+			if (type == "ERROR")
+				return QBrush(Qt::red);
+			if (type == "WARNING")
+				return QBrush("#a67c00");
+			if (type == "DEBUG")
+				return QBrush("#4E2A84");
+			return QBrush(Qt::black);
+		default:
+			return QVariant();
 	}
-
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -175,10 +174,10 @@ QVariant LogModel::headerData(int section, Qt::Orientation orientation, int role
 {
 	switch (role)
 	{
-	case Qt::DisplayRole:
-		return m_columns.valueToKey(section);
-	default:
-		return QVariant();
+		case Qt::DisplayRole:
+			return m_columns.valueToKey(section);
+		default:
+			return QVariant();
 	}
 }
 
@@ -215,7 +214,7 @@ bool LogModel::setData(const QModelIndex& index, const QVariant& value, int role
 
 	m_logData[index.row()][index.column()] = value.toString();
 
-	emit dataChanged(index, index, QVector{ role });
+	emit dataChanged(index, index, QVector{role});
 
 	return true;
 }
@@ -232,7 +231,7 @@ void LogModel::appendRow(const QString& value)
 	this->beginInsertRows(QModelIndex(), rowCount(), rowCount());
 
 	auto match = m_regex.match(value);
-	
+
 	if (!match.hasMatch())
 	{
 		// this can happen for raw cout writes that didn't use the macros.
@@ -242,7 +241,7 @@ void LogModel::appendRow(const QString& value)
 		m_logData.back().append("INFO");
 		m_logData.back().append(valueList.front().trimmed());
 		valueList.pop_front();
-		if(!valueList.isEmpty())
+		if (!valueList.isEmpty())
 			m_logData.back().append(valueList);
 	}
 	else
@@ -254,9 +253,9 @@ void LogModel::appendRow(const QString& value)
 		if (!match.captured(5).isEmpty())
 		{
 			QStringList details = match.captured(5).split('\n');
-			for(auto& detail : details)
+			for (auto& detail : details)
 				m_logData.back().append(detail.trimmed());
-		}			
+		}
 	}
 
 	this->endInsertRows();
@@ -291,8 +290,18 @@ size_t LogModel::scrollbackBufferSize() const noexcept
 //--------------------------------------------------------------------------------------------------
 void LogModel::setScrollbackBufferSize(size_t size)
 {
-	m_scrollbackBufferSize = size;
-	TODO("check the model size and remove stuff if there's too much");
+	if (size < m_logData.size())
+	{
+		emit this->beginResetModel();
+		size_t amountToRemove = m_logData.size() - size;
+		m_logData.erase(m_logData.begin(), m_logData.begin() + amountToRemove);
+		m_scrollbackBufferSize = size;
+		emit this->endResetModel();
+	}
+	else
+	{
+		m_scrollbackBufferSize = size;
+	}
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -351,20 +360,20 @@ void LogModel::parse()
 //--------------------------------------------------------------------------------------------------
 void LogModel::appendRows()
 {
-	QStringList row;
+	QStringList             row;
 	std::deque<QStringList> rows;
 	while (m_outbox.try_pop(row) && !m_joinAll)
 	{
 		rows.push_back(row);
 	}
 
-	if(!rows.empty())
+	if (!rows.empty())
 	{
 		// check if we exceed the scroll buffer, and remove stuff if so.
 		// ensure there are always at least scroll buffer size entries. Otherwise once the buffer fills up the list view
 		// will appear to the user to be 'auto-scrolling' all the time
 		auto totalSize = m_logData.size() + rows.size();
-		if (totalSize > 2 * m_scrollbackBufferSize) 
+		if (totalSize > 2 * m_scrollbackBufferSize)
 		{
 			auto numToRemove = totalSize - scrollbackBufferSize();
 			m_numRemoved += numToRemove;
@@ -388,11 +397,11 @@ void LogModel::appendRows()
 				numToRemove -= numToRemoveFromHere;
 			}
 
-			assert(numToRemove == 0);					
+			assert(numToRemove == 0);
 		}
 
 		auto first = m_logData.size();
-		auto last = totalSize - 1;
+		auto last  = totalSize - 1;
 		this->beginInsertRows(QModelIndex(), first, last);
 		m_logData.insert(m_logData.end(), rows.begin(), rows.end());
 		this->endInsertRows();
