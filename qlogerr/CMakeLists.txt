@@ -24,6 +24,7 @@ list(APPEND HEADER_FILES
         include/logerrGuiApplication.h
         include/LogModel.h
         include/LogProxyModel.h
+        include/logReceiver.h
         include/StackTraceSIGSEGVQt.h
         include/qCoreAppThread.h
         )
@@ -36,6 +37,7 @@ list(APPEND SOURCE_FILES
         src/logDock.cpp
         src/LogModel.cpp
         src/LogProxyModel.cpp
+        src/logReceiver.cpp
         src/StackTraceSIGSEGVQt.cpp
         src/qCoreAppThread.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/qappinfo.cpp

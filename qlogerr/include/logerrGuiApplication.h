@@ -54,6 +54,7 @@
 
 #include <Application.h>
 #include <LogFileWriter.h>
+#include <logReceiver.h>
 #include <LogStream.h>
 #include <StackTraceException.h>
 #include <StackTraceSIGSEGVQt.h>
@@ -113,10 +114,13 @@ namespace logerr
                                                                                                                      \
 	LogFileWriter logFileWriter;                                                                                     \
 	LogDock*      logDock = new LogDock;                                                                             \
+	LogReceiver   logReceiver;                                                                                       \
 	LogStream     logStream(std::cout);                                                                              \
                                                                                                                      \
 	logStream.registerLogFunction("logFileWriter", [&logFileWriter](std::string str) { logFileWriter.write(str); }); \
 	logStream.registerLogFunction("logDock", [&logDock](std::string str) { logDock->queueLogEntry(str); });          \
+                                                                                                                     \
+	QObject::connect(&logReceiver, &LogReceiver::readyRead, logDock, &LogDock::queueLogEntry);                       \
                                                                                                                      \
 	LOGINFO << APPINFO::name() << ' ' << APPINFO::version() << " Started." << std::endl;                             \
                                                                                                                      \

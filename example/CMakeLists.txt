@@ -17,8 +17,6 @@ PROJECT(logerrExample)
 
 # .cpp files
 list(APPEND SOURCE_FILES
-        logReceiver.h
-        logReceiver.cpp
         main.cpp
         mainWindow.h
         mainWindow.cpp
