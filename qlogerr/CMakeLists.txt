@@ -27,6 +27,7 @@ list(APPEND HEADER_FILES
         include/logReceiver.h
         include/StackTraceSIGSEGVQt.h
         include/qCoreAppThread.h
+        include/qCoreAppThreadPrivate.h
         )
 
 # .cpp files
