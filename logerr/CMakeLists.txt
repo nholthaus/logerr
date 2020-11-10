@@ -23,6 +23,7 @@ list(APPEND HEADER_FILES
         include/LogFileWriter.h
         include/logerrConsoleApplication.h
         include/LogStream.h
+        include/sigtermHandler.h
         include/StackTrace.h
         include/StackTraceException.h
         include/StackTraceSIGSEGV.h
@@ -33,6 +34,7 @@ list(APPEND HEADER_FILES
 list(APPEND SOURCE_FILES
         src/LogFileWriter.cpp
         src/LogStream.cpp
+        src/sigtermHandler.cpp
         src/StackTrace.cpp
         src/StackTraceException.cpp
         src/StackTraceSIGSEGV.cpp

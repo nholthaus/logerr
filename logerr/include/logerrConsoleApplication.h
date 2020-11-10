@@ -55,6 +55,7 @@
 #include <StackTraceSIGSEGV.h>
 #include <appinfo.h>
 #include <logerr>
+#include <sigtermHandler.h>
 #include <timestampLite.h>
 
 //----------------------------
@@ -70,6 +71,7 @@
 #ifndef LOGERR_CONSOLE_APP_BEGIN
 #define LOGERR_CONSOLE_APP_BEGIN                                                                                     \
 	std::signal(SIGSEGV, stackTraceSIGSEGV);                                                                         \
+	std::signal(SIGTERM, sigtermHandler);                                                                            \
                                                                                                                      \
 	int code          = 0;                                                                                           \
 	g_mainThreadID    = std::this_thread::get_id();                                                                  \
@@ -93,37 +95,42 @@
 
 /// Place at the very end of the `main` function.
 #ifndef LOGERR_CONSOLE_APP_END
-#define LOGERR_CONSOLE_APP_END                                                        \
-	/* rethrow exceptions from threads*/                                              \
-	std::exception_ptr exceptionPtr = g_exceptionPtr;                                 \
-	g_exceptionPtr                  = nullptr;                                        \
-                                                                                      \
-	if (exceptionPtr)                                                                 \
-	{                                                                                 \
-		std::rethrow_exception(exceptionPtr);                                         \
-	}                                                                                 \
-	}                                                                                 \
-	catch (StackTraceException & e)                                                   \
-	{                                                                                 \
-		LOGERR << e.what() << std::endl;                                              \
-		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;  \
-		code = 2;                                                                     \
-	}                                                                                 \
-	catch (std::exception & e)                                                        \
-	{                                                                                 \
-		LOGERR << "ERROR: Caught unhandled exception -  " << e.what() << std::endl;   \
-		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;  \
-		code = 3;                                                                     \
-	}                                                                                 \
-	catch (...)                                                                       \
-	{                                                                                 \
-		LOGERR << "ERROR: An unknown fatal error occurred. " << std::endl;            \
-		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;  \
-		code = 4;                                                                     \
-	}                                                                                 \
-                                                                                      \
-	if (code == 0) LOGINFO << APPINFO::name() << " Exited Successfully" << std::endl; \
-                                                                                      \
+#define LOGERR_CONSOLE_APP_END                                                                      \
+	/* rethrow exceptions from threads*/                                                            \
+	std::exception_ptr exceptionPtr = g_exceptionPtr;                                               \
+	g_exceptionPtr                  = nullptr;                                                      \
+                                                                                                    \
+	if (exceptionPtr)                                                                               \
+	{                                                                                               \
+		std::rethrow_exception(exceptionPtr);                                                       \
+	}                                                                                               \
+	}                                                                                               \
+	catch (TerminateException & e)                                                                  \
+	{                                                                                               \
+		LOGINFO << "[QUIT]" << APPINFO::name() << " exiting at user request (CTRL-C)" << std::endl; \
+		code = 0;                                                                                   \
+	}                                                                                               \
+	catch (StackTraceException & e)                                                                 \
+	{                                                                                               \
+		LOGERR << e.what() << std::endl;                                                            \
+		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;                \
+		code = 2;                                                                                   \
+	}                                                                                               \
+	catch (std::exception & e)                                                                      \
+	{                                                                                               \
+		LOGERR << "ERROR: Caught unhandled exception -  " << e.what() << std::endl;                 \
+		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;                \
+		code = 3;                                                                                   \
+	}                                                                                               \
+	catch (...)                                                                                     \
+	{                                                                                               \
+		LOGERR << "ERROR: An unknown fatal error occurred. " << std::endl;                          \
+		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;                \
+		code = 4;                                                                                   \
+	}                                                                                               \
+                                                                                                    \
+	if (code == 0) LOGINFO << APPINFO::name() << " Exited Successfully" << std::endl;               \
+                                                                                                    \
 	return code;
 #endif
 
