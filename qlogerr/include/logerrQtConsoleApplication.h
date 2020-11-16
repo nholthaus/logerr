@@ -66,33 +66,33 @@
 #define LOGERR_QT_CONSOLE_APP(argc, argv)             \
 	APPINFO::setName(std::filesystem::path(argv[0])); \
 	g_argc = argc;                                    \
-	for (int i = 0; i < argc; ++i) g_argv.push_back(argv[i]);
+	for (int i = 0; i < argc; ++i) g_argv.emplace_back(argv[i]);
 
 /// Place at the very beginning of the `main` function.
 #ifndef LOGERR_QT_CONSOLE_APP_BEGIN
-#define LOGERR_QT_CONSOLE_APP_BEGIN                                                                                  \
-	std::signal(SIGSEGV, stackTraceSIGSEGV);                                                                         \
-	std::signal(SIGTERM, sigtermHandler);                                                                            \
-                                                                                                                     \
-	int code          = 0;                                                                                           \
-	g_mainThreadID    = std::this_thread::get_id();                                                                  \
-	g_mainThreadIDSet = true;                                                                                        \
-                                                                                                                     \
-	LogFileWriter logFileWriter;                                                                                     \
-	LogBlaster    logBlaster;                                                                                        \
-	LogStream     logStream(std::cout);                                                                              \
-                                                                                                                     \
-	logStream.registerLogFunction("logFileWriter", [&logFileWriter](std::string str) { logFileWriter.write(str); }); \
-	logStream.registerLogFunction("logBlaster", [&logBlaster](std::string str) { logBlaster.blast(str); });          \
-                                                                                                                     \
-	LOGINFO << APPINFO::name() << ' ' << APPINFO::version() << " Started." << std::endl;                             \
-                                                                                                                     \
-	std::stringstream s;                                                                                             \
-	s << "Program args: ";                                                                                           \
-	for (auto& arg : g_argv) s << arg << " ";                                                                        \
-	LOGINFO << s.str() << std::endl;                                                                                 \
-                                                                                                                     \
-	try                                                                                                              \
+#define LOGERR_QT_CONSOLE_APP_BEGIN                                                                                             \
+	std::signal(SIGSEGV, stackTraceSIGSEGV);                                                                                    \
+	std::signal(SIGTERM, sigtermHandler);                                                                                       \
+                                                                                                                                \
+	int code          = 0;                                                                                                      \
+	g_mainThreadID    = std::this_thread::get_id();                                                                             \
+	g_mainThreadIDSet = true;                                                                                                   \
+                                                                                                                                \
+	LogFileWriter logFileWriter;                                                                                                \
+	LogBlaster    logBlaster;                                                                                                   \
+	LogStream     logStream(std::cout);                                                                                         \
+                                                                                                                                \
+	logStream.registerLogFunction("logFileWriter", [&logFileWriter](std::string str) { logFileWriter.write(std::move(str)); }); \
+	logStream.registerLogFunction("logBlaster", [&logBlaster](std::string str) { logBlaster.blast(std::move(str)); });          \
+                                                                                                                                \
+	LOGINFO << APPINFO::name() << ' ' << APPINFO::version() << " Started." << std::endl;                                        \
+                                                                                                                                \
+	std::stringstream s;                                                                                                        \
+	s << "Program args: ";                                                                                                      \
+	for (auto& arg : g_argv) s << arg << " ";                                                                                   \
+	LOGINFO << s.str() << std::endl;                                                                                            \
+                                                                                                                                \
+	try                                                                                                                         \
 	{
 #endif
 
