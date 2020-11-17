@@ -48,6 +48,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string_view>
+#include <sstream>
 #include <thread>
 
 #include <LogFileWriter.h>
