@@ -7,6 +7,7 @@
 
 #include <thread>
 #include <csignal>
+#include <logerrTypes.h>
 
 extern std::exception_ptr g_exceptionPtr;
 
@@ -16,57 +17,67 @@ std::decay_t<T> decay_copy(T&& v)
 	return std::forward<T>(v);
 }
 
-//----------------------------------------------------------------------------------------------------------------------
-//      CLASS: LogerrThread
-//----------------------------------------------------------------------------------------------------------------------
-/// Thread class capable of catching exceptions
-//----------------------------------------------------------------------------------------------------------------------
-class LogerrThread : public std::thread
+namespace logerr
 {
-public:
-	LogerrThread() noexcept;
+	//----------------------------------------------------------------------------------------------------------------------
+	//      CLASS: LogerrThread
+	//----------------------------------------------------------------------------------------------------------------------
+	/// Thread class capable of catching exceptions
+	//----------------------------------------------------------------------------------------------------------------------
+	class thread : public std::thread
+	{
+	public:
+		inline thread() noexcept;
 
+		template<class Function, class... Args>
+		inline explicit thread(Function&& f, Args&&... args);
+	};
+
+	//----------------------------------------------------------------------------------------------------------------------
+	//      FUNCTION: CONSTRUTOR [public]
+	//----------------------------------------------------------------------------------------------------------------------
+	/// @brief Default Constructor
+	//----------------------------------------------------------------------------------------------------------------------
+	thread::thread() noexcept
+	    : std::thread()
+	{
+	}
+
+	//----------------------------------------------------------------------------------------------------------------------
+	//      FUNCTION: CONSTRUCTOR [public]
+	//----------------------------------------------------------------------------------------------------------------------
+	/// @brief Construct from callable object
+	/// @tparam Function Function type
+	/// @tparam Args Argument type parameter pack
+	/// @param f function to run in thread
+	/// @param args arguments to the function
+	//----------------------------------------------------------------------------------------------------------------------
 	template<class Function, class... Args>
-	explicit LogerrThread(Function&& f, Args&&... args);
-};
-
-//----------------------------------------------------------------------------------------------------------------------
-//      FUNCTION: CONSTRUTOR [public]
-//----------------------------------------------------------------------------------------------------------------------
-/// @brief Default Constructor
-//----------------------------------------------------------------------------------------------------------------------
-LogerrThread::LogerrThread() noexcept
-		: std::thread()
-{
+	thread::thread(Function && f, Args && ... args)
+	    : std::thread(
+	            [](auto&& f, auto&&... args)
+	            {
+		            try
+		            {
+			            std::invoke(decay_copy(std::forward<Function>(f)),
+			                        decay_copy(std::forward<Args>(args))...);
+		            }
+		            catch (const logerr::exception& e)
+		            {
+			            g_exceptionPtr = std::make_exception_ptr(e);
+		            }
+		            catch (const std::exception& e)
+		            {
+			            g_exceptionPtr = std::make_exception_ptr(e);
+		            }
+		            catch (...)
+		            {
+			            g_exceptionPtr = std::current_exception();
+		            }
+	            },
+	            std::forward<Function>(f),
+	            std::forward<Args>(args)...)
+	{
+	}
 }
-
-//----------------------------------------------------------------------------------------------------------------------
-//      FUNCTION: CONSTRUCTOR [public]
-//----------------------------------------------------------------------------------------------------------------------
-/// @brief Construct from callable object
-/// @tparam Function Function type
-/// @tparam Args Argument type parameter pack
-/// @param f function to run in thread
-/// @param args arguments to the function
-//----------------------------------------------------------------------------------------------------------------------
-template<class Function, class... Args>
-LogerrThread::LogerrThread(Function&& f, Args&&... args)
-		: std::thread(
-		[](auto&& f, auto&& args)
-		{
-		  try
-		  {
-			  std::invoke(decay_copy(std::forward<Function>(f)),
-			              decay_copy(std::forward<Args>(args))...);
-		  }
-		  catch (...)
-		  {
-			  g_exceptionPtr = std::make_exception_ptr(std::current_exception());
-		  }
-		},
-		std::forward<Function>(f),
-		std::forward<Args>(args)...)
-{
-}
-
 #endif    //LIBLOGERR_LOGERRTHREAD_H

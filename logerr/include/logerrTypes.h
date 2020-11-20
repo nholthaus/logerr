@@ -6,7 +6,6 @@
 //----------------------------
 
 #include <StackTraceException.h>
-#include <logerrThread.h>
 #include <sigtermHandler.h>
 #include <timestampLite.h>
 
@@ -18,7 +17,6 @@ namespace logerr
 {
 	using exception           = StackTraceException;
 	using timestamp           = TimestampLite;
-	using thread              = LogerrThread;
 	using terminate_exception = TerminateException;
 }    // namespace logerr
 

@@ -27,6 +27,7 @@ MainWindow::~MainWindow()
 	m_joinAll = true;
 	if (m_thread1.joinable()) m_thread1.join();
 	if (m_thread2.joinable()) m_thread2.join();
+	if (m_thread3.joinable()) m_thread3.join();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -43,14 +44,15 @@ void MainWindow::initialize()
 
 	m_thread1 = logerr::thread([this]
 	                        { runThread1(); });
-	m_thread2 = logerr:thread([this]
+	m_thread2 = logerr::thread([this]
 	                        { runThread2(); });
+	m_thread3 = logerr::thread([this]
+	                          { runThread3(); });
 }
 
 void MainWindow::runThread1()
 {
 	bool a = g_mainThreadIDSet;
-	ERR("Goodbye, cruel world!");
 	while (!m_joinAll)
 	{
 		LOGINFO << "Thread One " << count1.fetch_add(1) << "iteration" << std::endl;
@@ -64,4 +66,9 @@ void MainWindow::runThread2()
 		LOGINFO << "Thread Two " << count2.fetch_add(1) << "iteration" << std::endl;
 		std::this_thread::sleep_for(1ms);
 	}
+}
+
+void MainWindow::runThread3()
+{
+	ERR("Goodbye, cruel world!");
 }

@@ -47,5 +47,6 @@
 //-------------------------
 
 #include <logerrMacros.h>
+#include <logerrThread.h>
 
 #endif // logerr_h__

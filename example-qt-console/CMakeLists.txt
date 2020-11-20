@@ -49,3 +49,12 @@ target_link_libraries(${PROJECT_NAME} ${LIBRARIES})
 
 # Use the automatically determined RPATH values
 set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+#-------------------------------------------------------------------------------
+#	DEPLOY QT DLLS
+#-------------------------------------------------------------------------------
+
+if (WIN32 AND BUILD_WITH_QT)
+    include(windeployqt)
+    windeployqt(${PROJECT_NAME} bin)
+endif ()

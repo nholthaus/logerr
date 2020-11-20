@@ -103,7 +103,7 @@ inline std::vector<std::string> g_argv;
 
 // fatal error
 #ifndef FATAL_ERR
-#define FATAL_ERR(msg) (!g_mainThreadIDSet || std::this_thread::get_id() == g_mainThreadID) ? throw logerr::exception(msg, __FILENAME__, __FUNCTION__, __LINE__, true) : g_exceptionPtr = std::make_exception_ptr(logerr::exception(msg, __FILENAME__, __FUNCTION__, __LINE__, true));
+#define FATAL_ERR(msg) throw logerr::exception(msg, __FILENAME__, __FUNCTION__, __LINE__, true);
 #endif
 
 // expects
@@ -123,7 +123,7 @@ inline std::vector<std::string> g_argv;
 	if (!g_mainThreadIDSet || std::this_thread::get_id() != g_mainThreadID) \
 		std::exit(13);                                                      \
                                                                             \
-	std::exception_ptr exceptionPtr = g_exceptionPtr;                       \
+	std::exception_ptr exceptionPtr = std::move(g_exceptionPtr);            \
 	g_exceptionPtr                  = nullptr;                              \
                                                                             \
 	if (exceptionPtr)                                                       \

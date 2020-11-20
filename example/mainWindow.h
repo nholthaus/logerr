@@ -49,10 +49,12 @@ public:
 protected:
 	void runThread1();
 	void runThread2();
+	void runThread3();
 
 protected:
 	std::thread      m_thread1;
 	std::thread      m_thread2;
+	std::thread      m_thread3;
 	std::atomic_bool m_joinAll = false;
 };
 

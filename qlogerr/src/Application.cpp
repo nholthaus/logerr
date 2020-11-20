@@ -41,7 +41,7 @@ bool Application::notify(QObject* object, QEvent* event)
 		if (exceptionPtr)
 			std::rethrow_exception(exceptionPtr);
 	}
-	catch (const StackTraceException& e)
+	catch (const logerr::exception& e)
 	{
 		if(!e.fatal())
 			LOGERR << e.what() << std::endl;

@@ -42,9 +42,9 @@
 //----------------------------
 
 // logerr
+#include <LogFileWriter.h>
 #include <appinfo.h>
 #include <date.h>
-#include <LogFileWriter.h>
 #include <timestampLite.h>
 
 // std
@@ -78,7 +78,7 @@ LogFileWriter::LogFileWriter(std::string logFilePath)
 			                       currentDateTime.erase(std::remove(currentDateTime.begin(), currentDateTime.end(), ':'), currentDateTime.end());
 
 			                       std::string name = APPINFO::gitRepo();
-			                       if(name != APPINFO::name())
+			                       if (name != APPINFO::name())
 				                       name.append("_").append(APPINFO::name());
 
 			                       std::ostringstream ss;
@@ -91,7 +91,12 @@ LogFileWriter::LogFileWriter(std::string logFilePath)
 		                       // to just write to `std::cerr`.
 		                       bool error = false;
 
-		                       if (!std::filesystem::exists(APPINFO::logDir()) && !std::filesystem::create_directories(APPINFO::logDir()))
+		                       // if the directory doesn't exist, create it
+		                       if (!std::filesystem::exists(APPINFO::logDir()))
+			                       std::filesystem::create_directories(APPINFO::logDir());
+
+		                       // if it still doesn't exist, that's a problem
+		                       if (!std::filesystem::exists(APPINFO::logDir()))
 		                       {
 			                       std::cerr << '[' << TimestampLite() << "] [ERROR]    Failed to `mkpath` to the log directory: "
 			                                 << APPINFO::logDir() << std::endl;
