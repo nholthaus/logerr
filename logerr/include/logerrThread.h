@@ -5,9 +5,10 @@
 //  INCLUDES
 //----------------------------
 
-#include <thread>
 #include <csignal>
+#include <functional>
 #include <logerrTypes.h>
+#include <thread>
 
 extern std::exception_ptr g_exceptionPtr;
 
@@ -53,7 +54,7 @@ namespace logerr
 	/// @param args arguments to the function
 	//----------------------------------------------------------------------------------------------------------------------
 	template<class Function, class... Args>
-	thread::thread(Function && f, Args && ... args)
+	thread::thread(Function&& f, Args&&... args)
 	    : std::thread(
 	            [](auto&& f, auto&&... args)
 	            {
@@ -79,5 +80,5 @@ namespace logerr
 	            std::forward<Args>(args)...)
 	{
 	}
-}
+}    // namespace logerr
 #endif    //LIBLOGERR_LOGERRTHREAD_H
