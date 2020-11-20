@@ -17,7 +17,6 @@
 #include <thread>
 
 // logerr
-#include <Application.h>
 #include <logerr>
 
 //----------------------------
@@ -25,7 +24,7 @@
 //----------------------------
 
 static char  arg0[] = "QCoreAppThread";
-static char* argv[] = {&arg0[0], NULL};
+static char* argv[] = {&arg0[0], nullptr};
 static int   argc   = (int) (sizeof(argv) / sizeof(argv[0])) - 1;
 
 //----------------------------
@@ -51,7 +50,7 @@ public:
 			                                          //   LOGINFO << "Starting QCoreAppThread..." << std::endl;
 
 			                                          // Create the QCoreApplication in the thread
-			                                          app = std::make_unique<Application>(argc, argv);
+			                                          app = std::make_unique<QCoreApplication>(argc, argv);
 
 			                                          QObject::connect(this, &QCoreAppThreadPrivate::quit, app.get(), &QCoreApplication::quit);
 
@@ -90,11 +89,11 @@ signals:
 	void quit();
 
 private:
-	std::unique_ptr<Application> app       = nullptr;
-	std::unique_ptr<std::thread> appThread = nullptr;
-	std::atomic_bool             appReady  = false;
-	std::condition_variable      appReadyCondition;
-	std::mutex                   appReadyMutex;
+	std::unique_ptr<QCoreApplication> app       = nullptr;
+	std::unique_ptr<std::thread>      appThread = nullptr;
+	std::atomic_bool                  appReady  = false;
+	std::condition_variable           appReadyCondition;
+	std::mutex                        appReadyMutex;
 };
 
 #endif    //LOGERR_QCOREAPPTHREADPRIVATE_H
