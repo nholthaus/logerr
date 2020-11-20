@@ -27,7 +27,6 @@ static char  arg0[] = "QCoreAppThread";
 static char* argv[] = {&arg0[0], NULL};
 static int   argc   = (int) (sizeof(argv) / sizeof(argv[0])) - 1;
 
-
 //----------------------------
 //  USING NAMESPACE
 //----------------------------
@@ -41,8 +40,9 @@ struct QCoreAppThreadPrivate : public QObject
 {
 private:
 	Q_OBJECT
+
 public:
-	QCoreAppThreadPrivate()
+	inline QCoreAppThreadPrivate()
 	{
 		// Make a QCoreApplication in a thread.
 		appThread = std::make_unique<std::thread>([this]
@@ -75,7 +75,7 @@ public:
 		while (!appReady) { appReadyCondition.wait_for(lock, 1ms); }
 	}
 
-	~QCoreAppThreadPrivate()
+	inline ~QCoreAppThreadPrivate() override
 	{
 		// quit the QCoreApplication
 		emit quit();

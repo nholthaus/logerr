@@ -47,8 +47,8 @@
 #include <cstring>
 #include <filesystem>
 #include <iostream>
-#include <string_view>
 #include <sstream>
+#include <string_view>
 #include <thread>
 
 #include <LogFileWriter.h>
@@ -64,6 +64,7 @@
 //  MACROS
 //----------------------------
 
+/// Call this once before LOGERR_CONSOLE_APP_BEGIN
 #define LOGERR_CONSOLE_APP(argc, argv)                \
 	APPINFO::setName(std::filesystem::path(argv[0])); \
 	g_argc = argc;                                    \
@@ -99,20 +100,14 @@
 #ifndef LOGERR_CONSOLE_APP_END
 #define LOGERR_CONSOLE_APP_END                                                                      \
 	/* rethrow exceptions from threads*/                                                            \
-	std::exception_ptr exceptionPtr = g_exceptionPtr;                                               \
-	g_exceptionPtr                  = nullptr;                                                      \
-                                                                                                    \
-	if (exceptionPtr)                                                                               \
-	{                                                                                               \
-		std::rethrow_exception(exceptionPtr);                                                       \
+	LOGERR_RETHROW();                                                                               \
 	}                                                                                               \
-	}                                                                                               \
-	catch (TerminateException & e)                                                                  \
+	catch (logerr::terminate_exception & e)                                                         \
 	{                                                                                               \
 		LOGINFO << "[QUIT]" << APPINFO::name() << " exiting at user request (CTRL-C)" << std::endl; \
 		code = 0;                                                                                   \
 	}                                                                                               \
-	catch (StackTraceException & e)                                                                 \
+	catch (logerr::exception & e)                                                                   \
 	{                                                                                               \
 		LOGERR << e.what() << std::endl;                                                            \
 		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;                \

@@ -41,9 +41,9 @@ void MainWindow::initialize()
 
 	//ERR("hello");
 
-	m_thread1 = std::thread([this]
+	m_thread1 = logerr::thread([this]
 	                        { runThread1(); });
-	m_thread2 = std::thread([this]
+	m_thread2 = logerr:thread([this]
 	                        { runThread2(); });
 }
 

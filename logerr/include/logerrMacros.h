@@ -46,13 +46,13 @@
 //-------------------------
 
 #include <atomic>
+#include <cstring>
 #include <iostream>
 #include <thread>
 #include <vector>
 
 #include <appinfo.h>
-#include <StackTraceException.h>
-#include <timestampLite.h>
+#include <logerrTypes.h>
 
 //------------------------------
 //	GLOBALS
@@ -61,7 +61,7 @@
 inline std::exception_ptr       g_exceptionPtr = nullptr;
 inline std::thread::id          g_mainThreadID;
 inline std::atomic_bool         g_mainThreadIDSet = false;
-inline int                      g_argc = 0;
+inline int                      g_argc            = 0;
 inline std::vector<std::string> g_argv;
 
 //-------------------------
@@ -98,12 +98,12 @@ inline std::vector<std::string> g_argv;
 
 // error
 #ifndef ERR
-#define ERR(msg) (!g_mainThreadIDSet || std::this_thread::get_id() == g_mainThreadID) ? throw StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__) : g_exceptionPtr = std::make_exception_ptr(StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__));
+#define ERR(msg) throw logerr::exception(msg, __FILENAME__, __FUNCTION__, __LINE__);
 #endif
 
 // fatal error
 #ifndef FATAL_ERR
-#define FATAL_ERR(msg) (!g_mainThreadIDSet || std::this_thread::get_id() == g_mainThreadID) ? throw StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__, true) : g_exceptionPtr = std::make_exception_ptr(StackTraceException(msg, __FILENAME__, __FUNCTION__, __LINE__, true));
+#define FATAL_ERR(msg) (!g_mainThreadIDSet || std::this_thread::get_id() == g_mainThreadID) ? throw logerr::exception(msg, __FILENAME__, __FUNCTION__, __LINE__, true) : g_exceptionPtr = std::make_exception_ptr(logerr::exception(msg, __FILENAME__, __FUNCTION__, __LINE__, true));
 #endif
 
 // expects
@@ -117,6 +117,19 @@ inline std::vector<std::string> g_argv;
 #define ENSURES(condition) \
 	if (!(condition)) { ERR("Post-condition failed: " #condition); }
 #endif
+
+/// call this in the programs `main` loop, if it has one
+#define LOGERR_RETHROW()                                                    \
+	if (!g_mainThreadIDSet || std::this_thread::get_id() != g_mainThreadID) \
+		std::exit(13);                                                      \
+                                                                            \
+	std::exception_ptr exceptionPtr = g_exceptionPtr;                       \
+	g_exceptionPtr                  = nullptr;                              \
+                                                                            \
+	if (exceptionPtr)                                                       \
+	{                                                                       \
+		std::rethrow_exception(exceptionPtr);                               \
+	}
 
 // verify
 #ifndef VERIFY
