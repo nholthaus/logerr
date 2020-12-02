@@ -18,6 +18,7 @@ PROJECT(qlogerr)
 list(APPEND HEADER_FILES
         include/qappinfo.h
         include/Application.h
+        include/coreApplication.h
         include/ExceptionDialog.h
         include/logBlaster.h
         include/logDock.h
@@ -33,6 +34,7 @@ list(APPEND HEADER_FILES
 # .cpp files
 list(APPEND SOURCE_FILES
         src/Application.cpp
+        src/coreApplication.cpp
         src/ExceptionDialog.cpp
         src/logBlaster.cpp
         src/logDock.cpp
