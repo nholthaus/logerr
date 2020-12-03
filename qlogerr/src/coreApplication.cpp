@@ -63,6 +63,3 @@ bool CoreApplication::notify(QObject* object, QEvent* event)
 
 	return retVal;
 }
-
-#include <moc_CoreApplication.cpp>
- 
