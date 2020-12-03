@@ -39,8 +39,6 @@ class QString;
 //----------------------------------------------------------------------------------------------------------------------
 namespace QAPPINFO
 {
-	void setName(const QString& name);
-
 	// Application Info
 	QString name();
 	QString organization();

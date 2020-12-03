@@ -97,7 +97,6 @@ namespace logerr
 /// Place at the very beginning of the `main` function.
 #ifndef LOGERR_GUI_APP_BEGIN
 #define LOGERR_GUI_APP_BEGIN                                                                                                    \
-	APPINFO::setName(std::filesystem::path(argv[0]).filename().replace_extension("").string());                                 \
 	std::signal(SIGSEGV, stackTraceSIGSEGVQt);                                                                                  \
                                                                                                                                 \
 	int code          = 0;                                                                                                      \

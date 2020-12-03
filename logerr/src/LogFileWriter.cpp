@@ -92,14 +92,15 @@ LogFileWriter::LogFileWriter(std::string logFilePath)
 		                       bool error = false;
 
 		                       // if the directory doesn't exist, create it
-		                       if (!std::filesystem::exists(APPINFO::logDir()))
-			                       std::filesystem::create_directories(APPINFO::logDir());
-
-		                       // if it still doesn't exist, that's a problem
-		                       if (!std::filesystem::exists(APPINFO::logDir()))
+		                       try
+		                       {
+			                       if (!std::filesystem::exists(APPINFO::logDir()))
+				                       std::filesystem::create_directories(APPINFO::logDir());
+		                       }
+		                       catch(const std::filesystem::filesystem_error& e)
 		                       {
 			                       std::cerr << '[' << TimestampLite() << "] [ERROR]    Failed to `mkpath` to the log directory: "
-			                                 << APPINFO::logDir() << std::endl;
+			                                 << APPINFO::logDir() << ". Details: " << e.what() << std::endl;
 			                       error = true;
 		                       }
 

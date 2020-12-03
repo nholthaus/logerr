@@ -44,13 +44,25 @@ constexpr bool IS_LINUX = @IS_LINUX@;
 
 #include <algorithm>
 #include <cstdlib>
+#include <fstream>
+#include <filesystem>
 
 #if defined __has_include
 #if __has_include(<unistd.h>)
 #include <unistd.h>
 #endif
+#if __has_include(<sys/auxv.h>)
+#include <sys/auxv.h>
+#else
+#define getauxval(...) std::string("").data()
+#endif
 #if __has_include(<winsock.h>)
 #include <winsock.h>
+#endif
+#if __has_include(<libloaderapi.h>)
+#include <libloaderapi.h>
+#else
+#define GetModuleFileNameA(...) // don't have it
 #endif
 #endif
 
@@ -64,7 +76,7 @@ namespace APPINFO::detail
 {
 
 	// Application Info
-	string name("unset_name");
+	string       name("unset_name");
 	const string organization("@APPLICATION_ORGANIZATION@");
 	const string organizationDomain(git::origin);
 	const string version(git::tag + '.' + git::commitShort + git::dirtyString);
@@ -222,12 +234,26 @@ namespace APPINFO::detail
 //	ACCESSOR FUNCTIONS - app
 //--------------------------------------------------------------------------------------------------
 
-void APPINFO::setName(const std::string& name) {detail::name = name; }
-void APPINFO::setName(const std::filesystem::path& path) {detail::name = path.filename().replace_extension("").string(); }
-
 // Application Info
-string APPINFO::name() { return detail::name; }
-string APPINFO::organization() { return detail::organization; }
+string APPINFO::name()
+{
+	if constexpr (IS_LINUX || IS_MAC)
+	{
+		return std::filesystem::path((char *)getauxval(AT_EXECFN)).filename().replace_extension("").string();
+	}
+	if constexpr (IS_WIN)
+	{
+		char buf[215];
+		GetModuleFileNameA(nullptr, buf, 215);
+		return std::filesystem::path(buf).filename().replace_extension("").string();
+	}
+	else
+		return detail::name;
+}
+string APPINFO::organization()
+{
+	return detail::organization;
+}
 string APPINFO::organizationDomain() { return detail::organizationDomain; }
 string APPINFO::version() { return detail::version; }
 
@@ -302,7 +328,7 @@ string APPINFO::home()
 string APPINFO::appDataDir()
 {
 	string name = git::repo;
-	if(name != APPINFO::name() && !APPINFO::name().empty())
+	if (name != APPINFO::name() && !APPINFO::name().empty())
 		name.append("/").append(APPINFO::name());
 
 	if constexpr (IS_LINUX)

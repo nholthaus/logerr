@@ -65,9 +65,8 @@
 //----------------------------
 
 /// Call this once before LOGERR_CONSOLE_APP_BEGIN
-#define LOGERR_CONSOLE_APP(argc, argv)                \
-	APPINFO::setName(std::filesystem::path(argv[0])); \
-	g_argc = argc;                                    \
+#define LOGERR_CONSOLE_APP(argc, argv) \
+	g_argc = argc;                     \
 	for (int i = 0; i < argc; ++i) g_argv.emplace_back(argv[i]);
 
 /// Place at the very beginning of the `main` function.
@@ -89,7 +88,10 @@
                                                                                                                                 \
 	std::stringstream s;                                                                                                        \
 	s << "Program args: ";                                                                                                      \
-	for (auto& arg : g_argv) s << arg << " ";                                                                                   \
+	if (g_argv.empty())                                                                                                         \
+		s << "UNKNOWN. (Did you include LOGERR_CONSOLE_APP(argc, argv) in your main function?)";                                \
+	else                                                                                                                        \
+		for (auto& arg : g_argv) s << arg << " ";                                                                               \
 	LOGINFO << s.str() << std::endl;                                                                                            \
                                                                                                                                 \
 	try                                                                                                                         \

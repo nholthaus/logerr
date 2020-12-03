@@ -108,7 +108,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 if (MSVC)
     add_compile_options(/MP)
-elseif (CMAKE_COMPILER_IS_GNUCXX)
+else(MSVC)
     add_compile_options(-std=c++17)
 endif (MSVC)
 
