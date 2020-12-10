@@ -48,6 +48,7 @@
 #include <iosfwd>
 #include <ostream>
 #include <string>
+#include <ctime>
 
 //	----------------------------------------------------------------------------
 //	CLASS		TimestampLite
@@ -64,6 +65,8 @@ class TimestampLite
 public:
 	TimestampLite();
 
+	operator std::chrono::system_clock::time_point() const;
+	operator std::time_t() const;
 	operator std::string() const;
 	friend std::ostream& operator<<(std::ostream& os, const TimestampLite& timestamp);
 

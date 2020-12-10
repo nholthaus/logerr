@@ -70,6 +70,7 @@ endif ()
 #-------------------------------------------------------------------------------
 
 configure_file(appinfo.cpp.in appinfo.cpp @ONLY NEWLINE_STYLE UNIX)
+add_compile_definitions(AUTO_DOWNLOAD=1)
 
 #-------------------------------------------------------------------------------
 #	ADDITIONAL LIBRARIES
