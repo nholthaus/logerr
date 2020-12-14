@@ -93,9 +93,13 @@ LogBlaster::LogBlaster(QHostAddress host, quint16 port)
 		                             std::string logMessage;
 		                             while (!d->m_joinAll)
 		                             {
-			                             if (d->m_logQueue.try_pop_for(logMessage, 250ms))
+			                             if (d->m_logQueue.try_pop_for(logMessage, 10ms))
 				                             socket->writeDatagram(logMessage.data(), logMessage.size(), d->m_host, d->m_port);
 		                             }
+
+		                             // on join, blast whatever is immediately available
+		                             while (d->m_logQueue.try_pop_for(logMessage, 0ms))
+			                             socket->writeDatagram(logMessage.data(), logMessage.size(), d->m_host, d->m_port);
 	                             });
 }
 
