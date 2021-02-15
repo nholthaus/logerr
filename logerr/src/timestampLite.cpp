@@ -5,10 +5,10 @@
 #include "timestampLite.h"
 
 #if __has_include(<timezoneapi.h>)
-#define WIN32_LEAN_AND_MEAN      // Exclude rarely-used stuff from Windows headers
+#define WIN32_LEAN_AND_MEAN    // Exclude rarely-used stuff from Windows headers
 #include <windows.h>
-#include <timezoneapi.h>
 #include <regex>
+#include <timezoneapi.h>
 #endif
 
 //--------------------------------------------------------------------------------------------------
@@ -32,9 +32,12 @@ TimestampLite::operator std::chrono::system_clock::time_point() const
 TimestampLite::operator std::string() const
 {
 
+#ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable : 4996)    // disable: warning C4996: 'localtime': This function or variable may be unsafe. Consider using localtime_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
-	char        buffer[128];
+#pragma warning(disable : 4244)    // disable: warning C4244: 'argument': conversion from 'wchar_t' to 'const _Elem', possible loss of data from fulltimezone function
+#endif
+	char buffer[128];
 	auto now_c = static_cast<std::time_t>(*this);
 	std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", std::localtime(&now_c));
 #if __has_include(<timezoneapi.h>)
@@ -42,14 +45,14 @@ TimestampLite::operator std::string() const
 	DYNAMIC_TIME_ZONE_INFORMATION timeZoneInformation;
 	GetDynamicTimeZoneInformation(&timeZoneInformation);
 	std::wstring wtimezone = timeZoneInformation.DaylightName;
-	std::string fulltimezone(wtimezone.begin(), wtimezone.end());
-	std::regex rx(R"(\b(\w).*?\b)");
-	std::smatch      match;
-	std::string timezone;
+	std::string  fulltimezone(wtimezone.begin(), wtimezone.end());
+	std::regex   rx(R"(\b(\w).*?\b)");
+	std::smatch  match;
+	std::string  timezone;
 
 	// get timezone abbreviation
-	std::string::const_iterator searchStart( fulltimezone.cbegin() );
-	while ( regex_search( searchStart, fulltimezone.cend(), match, rx ) )
+	std::string::const_iterator searchStart(fulltimezone.cbegin());
+	while (regex_search(searchStart, fulltimezone.cend(), match, rx))
 	{
 		timezone.append(match[1]);
 		searchStart = match.suffix().first;
@@ -66,7 +69,9 @@ TimestampLite::operator std::string() const
 	nanoseconds = std::string(9 - nanoseconds.length(), '0') + nanoseconds;
 
 	return seconds + '.' + nanoseconds + ' ' + timezone;
+#ifdef _MSC_VER
 #pragma warning(pop)
+#endif
 }
 //----------------------------------------------------------------------------------------------------------------------
 //  operator<<
@@ -76,4 +81,3 @@ std::ostream& operator<<(std::ostream& os, const TimestampLite& timestamp)
 	os << static_cast<std::string>(timestamp);
 	return os;
 }
-

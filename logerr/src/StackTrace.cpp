@@ -11,6 +11,7 @@
 // The intent is for this to be defined (or not) by CMake. If you're not using CMake, define this
 // yourself (maybe based on the _MSV_VER or __GNUC__ macros)
 #ifdef _MSC_VER
+#define WIN32_LEAN_AND_MEAN    // Exclude rarely-used stuff from Windows headers
 #include <windows.h>
 #pragma warning(push)
 #pragma warning(disable : 4091)
