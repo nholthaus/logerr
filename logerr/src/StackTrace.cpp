@@ -119,7 +119,7 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 		return;
 
 	// get max filename length
-	int maxFilenameLength = 0;
+	size_t maxFilenameLength = 0;
 	for (auto& [filename, functionName] : symbols)
 	{
 		if (filename.length() > maxFilenameLength)
@@ -131,7 +131,7 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 
 	// iterate over the returned symbol lines. skip the first, it is the
 	// address of this function.
-	for (int i = 1 + ignore; i < symbols.size(); i++)
+	for (size_t i = 1 + ignore; i < symbols.size(); i++)
 	{
 		auto& [filename, functionName] = symbols[i];
 
