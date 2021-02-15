@@ -52,7 +52,6 @@ void MainWindow::initialize()
 
 void MainWindow::runThread1()
 {
-	bool a = g_mainThreadIDSet;
 	while (!m_joinAll)
 	{
 		LOGINFO << "Thread One " << count1.fetch_add(1) << "iteration" << std::endl;

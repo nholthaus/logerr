@@ -2,9 +2,9 @@
 //	INCLUDES
 //------------------------------
 
-#include <qappinfo.h>
 #include <ExceptionDialog.h>
 #include <logerr>
+#include <qappinfo.h>
 
 #include <QApplication>
 #include <QClipboard>
@@ -23,31 +23,31 @@
 //	CONSTRUCTOR
 //--------------------------------------------------------------------------------------------------
 ExceptionDialog::ExceptionDialog(const StackTraceException& exception, bool fatal, QWidget* parent /*= nullptr*/)
-	: QDialog(parent)
-	, m_fatal(fatal)
-	, m_errorMessage(QString::fromStdString(exception.errorMessage()))
-	, m_errorDetails(QString::fromStdString(exception.errorDetails()))
-	, m_filename(QString::fromStdString(exception.filename()))
-	, m_function(QString::fromStdString(exception.function()))
-	, m_line(QString::number(exception.line()))
-	, m_errorIcon(new QLabel(this))
-	, m_errorMessageLabel(new QLabel(m_errorMessage.prepend("ERROR: "), this))
-	, m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function).arg(m_filename).arg(m_line), this))
-	, m_detailsGroupBox(new QGroupBox())
-	, m_detailsGroupBoxLayout(new QVBoxLayout)
-	, m_detailsTextBrowser(new CorrectlySizedTextBrowser(this))
-	, m_detailsButtonLayout(new QHBoxLayout)
-	, m_applicationInfoButton(new QPushButton("App Info"))
-	, m_versionInfoButton(new QPushButton("Version Info"))
-	, m_buildInfoButton(new QPushButton("Build Info"))
-	, m_hostInfoButton(new QPushButton("Host Info"))
-	, m_StackTraceButton(new QPushButton("Stack Trace"))
-	, m_showDetailsButton(new QPushButton("Show Details", this))
-	, m_copyButton(new QPushButton("Copy Error", this))
-	, m_okButton(new QPushButton("OK", this))
-	, m_topLayout(new QVBoxLayout)
-	, m_errorLayout(new QHBoxLayout)
-	, m_buttonLayout(new QHBoxLayout)
+    : QDialog(parent)
+    , m_fatal(fatal)
+    , m_errorMessage(QString::fromStdString(exception.errorMessage()))
+    , m_errorDetails(QString::fromStdString(exception.errorDetails()))
+    , m_filename(QString::fromStdString(exception.filename()))
+    , m_function(QString::fromStdString(exception.function()))
+    , m_line(QString::number(exception.line()))
+    , m_errorIcon(new QLabel(this))
+    , m_errorMessageLabel(new QLabel(m_errorMessage.prepend("ERROR: "), this))
+    , m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function).arg(m_filename).arg(m_line), this))
+    , m_detailsGroupBox(new QGroupBox())
+    , m_detailsTextBrowser(new CorrectlySizedTextBrowser(this))
+    , m_applicationInfoButton(new QPushButton("App Info"))
+    , m_versionInfoButton(new QPushButton("Version Info"))
+    , m_buildInfoButton(new QPushButton("Build Info"))
+    , m_hostInfoButton(new QPushButton("Host Info"))
+    , m_StackTraceButton(new QPushButton("Stack Trace"))
+    , m_showDetailsButton(new QPushButton("Show Details", this))
+    , m_copyButton(new QPushButton("Copy Error", this))
+    , m_okButton(new QPushButton("OK", this))
+    , m_topLayout(new QVBoxLayout)
+    , m_errorLayout(new QHBoxLayout)
+    , m_detailsGroupBoxLayout(new QVBoxLayout)
+    , m_detailsButtonLayout(new QHBoxLayout)
+    , m_buttonLayout(new QHBoxLayout)
 {
 	setupUI();
 }
@@ -56,31 +56,31 @@ ExceptionDialog::ExceptionDialog(const StackTraceException& exception, bool fata
 //	ExceptionDialog (public ) []
 //--------------------------------------------------------------------------------------------------
 ExceptionDialog::ExceptionDialog(const std::exception& exception, bool fatal /*= false*/, QWidget* parent /*= nullptr*/)
-	: QDialog(parent)
-	, m_fatal(fatal)
-	, m_errorMessage(QString("An unrecoverable error has occurred.\n").append(QAPPINFO::name()).append(" must now exit."))
-	, m_errorDetails(exception.what())
-	, m_filename("")
-	, m_function("")
-	, m_line("")
-	, m_errorIcon(new QLabel(this))
-	, m_errorMessageLabel(new QLabel(m_errorMessage.prepend("ERROR: "), this))
-	, m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function).arg(m_filename).arg(m_line), this))
-	, m_detailsGroupBox(new QGroupBox())
-	, m_detailsGroupBoxLayout(new QVBoxLayout)
-	, m_detailsTextBrowser(new CorrectlySizedTextBrowser(this))
-	, m_detailsButtonLayout(new QHBoxLayout)
-	, m_applicationInfoButton(new QPushButton("App Info"))
-	, m_versionInfoButton(new QPushButton("Version Info"))
-	, m_buildInfoButton(new QPushButton("Build Info"))
-	, m_hostInfoButton(new QPushButton("Host Info"))
-	, m_StackTraceButton(new QPushButton("Stack Trace"))
-	, m_showDetailsButton(new QPushButton("Show Details", this))
-	, m_copyButton(new QPushButton("Copy Error", this))
-	, m_okButton(new QPushButton("OK", this))
-	, m_topLayout(new QVBoxLayout)
-	, m_errorLayout(new QHBoxLayout)
-	, m_buttonLayout(new QHBoxLayout)
+    : QDialog(parent)
+    , m_fatal(fatal)
+    , m_errorMessage(QString("An unrecoverable error has occurred.\n").append(QAPPINFO::name()).append(" must now exit."))
+    , m_errorDetails(exception.what())
+    , m_filename("")
+    , m_function("")
+    , m_line("")
+    , m_errorIcon(new QLabel(this))
+    , m_errorMessageLabel(new QLabel(m_errorMessage.prepend("ERROR: "), this))
+    , m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function).arg(m_filename).arg(m_line), this))
+    , m_detailsGroupBox(new QGroupBox())
+    , m_detailsTextBrowser(new CorrectlySizedTextBrowser(this))
+    , m_applicationInfoButton(new QPushButton("App Info"))
+    , m_versionInfoButton(new QPushButton("Version Info"))
+    , m_buildInfoButton(new QPushButton("Build Info"))
+    , m_hostInfoButton(new QPushButton("Host Info"))
+    , m_StackTraceButton(new QPushButton("Stack Trace"))
+    , m_showDetailsButton(new QPushButton("Show Details", this))
+    , m_copyButton(new QPushButton("Copy Error", this))
+    , m_okButton(new QPushButton("OK", this))
+    , m_topLayout(new QVBoxLayout)
+    , m_errorLayout(new QHBoxLayout)
+    , m_detailsGroupBoxLayout(new QVBoxLayout)
+    , m_detailsButtonLayout(new QHBoxLayout)
+    , m_buttonLayout(new QHBoxLayout)
 {
 	setupUI();
 	m_errorLocationLabel->hide();
@@ -96,31 +96,31 @@ ExceptionDialog::ExceptionDialog(const std::exception& exception, bool fatal /*=
 //	ExceptionDialog (public ) []
 //--------------------------------------------------------------------------------------------------
 ExceptionDialog::ExceptionDialog(const char* msg, bool fatal /*= false*/, QWidget* parent /*= nullptr*/)
-	: QDialog(parent)
-	, m_fatal(fatal)
-	, m_errorMessage(QString("An unrecoverable error has occurred.\n").append(QAPPINFO::name()).append(" must now exit."))
-	, m_errorDetails(msg)
-	, m_filename("")
-	, m_function("")
-	, m_line("")
-	, m_errorIcon(new QLabel(this))
-	, m_errorMessageLabel(new QLabel(m_errorMessage.prepend("ERROR: "), this))
-	, m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function).arg(m_filename).arg(m_line), this))
-	, m_detailsGroupBox(new QGroupBox())
-	, m_detailsGroupBoxLayout(new QVBoxLayout)
-	, m_detailsTextBrowser(new CorrectlySizedTextBrowser(this))
-	, m_detailsButtonLayout(new QHBoxLayout)
-	, m_applicationInfoButton(new QPushButton("App Info"))
-	, m_versionInfoButton(new QPushButton("Version Info"))
-	, m_buildInfoButton(new QPushButton("Build Info"))
-	, m_hostInfoButton(new QPushButton("Host Info"))
-	, m_StackTraceButton(new QPushButton("Stack Trace"))
-	, m_showDetailsButton(new QPushButton("Show Details", this))
-	, m_copyButton(new QPushButton("Copy Error", this))
-	, m_okButton(new QPushButton("OK", this))
-	, m_topLayout(new QVBoxLayout)
-	, m_errorLayout(new QHBoxLayout)
-	, m_buttonLayout(new QHBoxLayout)
+    : QDialog(parent)
+    , m_fatal(fatal)
+    , m_errorMessage(QString("An unrecoverable error has occurred.\n").append(QAPPINFO::name()).append(" must now exit."))
+    , m_errorDetails(msg)
+    , m_filename("")
+    , m_function("")
+    , m_line("")
+    , m_errorIcon(new QLabel(this))
+    , m_errorMessageLabel(new QLabel(m_errorMessage.prepend("ERROR: "), this))
+    , m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function).arg(m_filename).arg(m_line), this))
+    , m_detailsGroupBox(new QGroupBox())
+    , m_detailsTextBrowser(new CorrectlySizedTextBrowser(this))
+    , m_applicationInfoButton(new QPushButton("App Info"))
+    , m_versionInfoButton(new QPushButton("Version Info"))
+    , m_buildInfoButton(new QPushButton("Build Info"))
+    , m_hostInfoButton(new QPushButton("Host Info"))
+    , m_StackTraceButton(new QPushButton("Stack Trace"))
+    , m_showDetailsButton(new QPushButton("Show Details", this))
+    , m_copyButton(new QPushButton("Copy Error", this))
+    , m_okButton(new QPushButton("OK", this))
+    , m_topLayout(new QVBoxLayout)
+    , m_errorLayout(new QHBoxLayout)
+    , m_detailsGroupBoxLayout(new QVBoxLayout)
+    , m_detailsButtonLayout(new QHBoxLayout)
+    , m_buttonLayout(new QHBoxLayout)
 {
 	setupUI();
 	m_errorLocationLabel->hide();
@@ -136,31 +136,31 @@ ExceptionDialog::ExceptionDialog(const char* msg, bool fatal /*= false*/, QWidge
 //	ExceptionDialog (public ) []
 //--------------------------------------------------------------------------------------------------
 ExceptionDialog::ExceptionDialog(QString msg, QString details, bool fatal /*= false*/, QWidget* parent /*= nullptr*/)
-	: QDialog(parent)
-	, m_fatal(fatal)
-	, m_errorMessage(msg)
-	, m_errorDetails(details)
-	, m_filename("")
-	, m_function("")
-	, m_line("")
-	, m_errorIcon(new QLabel(this))
-	, m_errorMessageLabel(new QLabel(m_errorMessage.prepend("FATAL ERROR: "), this))
-	, m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function).arg(m_filename).arg(m_line), this))
-	, m_detailsGroupBox(new QGroupBox())
-	, m_detailsGroupBoxLayout(new QVBoxLayout)
-	, m_detailsTextBrowser(new CorrectlySizedTextBrowser(this))
-	, m_detailsButtonLayout(new QHBoxLayout)
-	, m_applicationInfoButton(new QPushButton("App Info"))
-	, m_versionInfoButton(new QPushButton("Version Info"))
-	, m_buildInfoButton(new QPushButton("Build Info"))
-	, m_hostInfoButton(new QPushButton("Host Info"))
-	, m_StackTraceButton(new QPushButton("Stack Trace"))
-	, m_showDetailsButton(new QPushButton("Show Details", this))
-	, m_copyButton(new QPushButton("Copy Error", this))
-	, m_okButton(new QPushButton("OK", this))
-	, m_topLayout(new QVBoxLayout)
-	, m_errorLayout(new QHBoxLayout)
-	, m_buttonLayout(new QHBoxLayout)
+    : QDialog(parent)
+    , m_fatal(fatal)
+    , m_errorMessage(msg)
+    , m_errorDetails(details)
+    , m_filename("")
+    , m_function("")
+    , m_line("")
+    , m_errorIcon(new QLabel(this))
+    , m_errorMessageLabel(new QLabel(m_errorMessage.prepend("FATAL ERROR: "), this))
+    , m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function).arg(m_filename).arg(m_line), this))
+    , m_detailsGroupBox(new QGroupBox())
+    , m_detailsTextBrowser(new CorrectlySizedTextBrowser(this))
+    , m_applicationInfoButton(new QPushButton("App Info"))
+    , m_versionInfoButton(new QPushButton("Version Info"))
+    , m_buildInfoButton(new QPushButton("Build Info"))
+    , m_hostInfoButton(new QPushButton("Host Info"))
+    , m_StackTraceButton(new QPushButton("Stack Trace"))
+    , m_showDetailsButton(new QPushButton("Show Details", this))
+    , m_copyButton(new QPushButton("Copy Error", this))
+    , m_okButton(new QPushButton("OK", this))
+    , m_topLayout(new QVBoxLayout)
+    , m_errorLayout(new QHBoxLayout)
+    , m_detailsGroupBoxLayout(new QVBoxLayout)
+    , m_detailsButtonLayout(new QHBoxLayout)
+    , m_buttonLayout(new QHBoxLayout)
 {
 	setupUI();
 	m_errorLocationLabel->hide();
@@ -180,7 +180,7 @@ void ExceptionDialog::setupUI()
 	m_topLayout->addLayout(m_buttonLayout);
 
 	m_errorLayout->addWidget(m_errorIcon);
-	if(m_fatal)
+	if (m_fatal)
 		m_errorIcon->setPixmap(style()->standardIcon(QStyle::SP_MessageBoxCritical).pixmap(QSize(50, 50)));
 	else
 		m_errorIcon->setPixmap(style()->standardIcon(QStyle::SP_MessageBoxWarning).pixmap(QSize(50, 50)));
@@ -218,8 +218,8 @@ void ExceptionDialog::setupUI()
 	m_detailsTextBrowser->verticalScrollBar()->setRange(0, m_detailsTextBrowser->document()->lineCount());
 	m_detailsTextBrowser->verticalScrollBar()->setSingleStep(5);
 	m_detailsTextBrowser->setFixedHeight(QFontMetrics(m_detailsTextBrowser->font()).lineSpacing() * 12
-		+ m_detailsTextBrowser->document()->documentMargin()
-		+ m_detailsTextBrowser->frameWidth() * 2);
+	                                     + m_detailsTextBrowser->document()->documentMargin()
+	                                     + m_detailsTextBrowser->frameWidth() * 2);
 
 	this->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
@@ -231,7 +231,7 @@ void ExceptionDialog::setupUI()
 	VERIFY(connect(m_versionInfoButton, &QPushButton::clicked, this, &ExceptionDialog::on_pbVersionInfoButton_clicked));
 	VERIFY(connect(m_buildInfoButton, &QPushButton::clicked, this, &ExceptionDialog::on_pbBuildInfoButton_clicked));
 	VERIFY(connect(m_hostInfoButton, &QPushButton::clicked, this, &ExceptionDialog::on_pbHostInfoButton_clicked));
-	VERIFY(connect(m_StackTraceButton, &QPushButton::clicked, this, &ExceptionDialog::on_pbStackTraceButton_clicked));		
+	VERIFY(connect(m_StackTraceButton, &QPushButton::clicked, this, &ExceptionDialog::on_pbStackTraceButton_clicked));
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -239,7 +239,6 @@ void ExceptionDialog::setupUI()
 //--------------------------------------------------------------------------------------------------
 ExceptionDialog::~ExceptionDialog()
 {
-
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -324,8 +323,8 @@ void ExceptionDialog::on_pbStackTraceButton_clicked()
 //--------------------------------------------------------------------------------------------------
 //	CorrectlySizedTextBrowser (public ) []
 //--------------------------------------------------------------------------------------------------
-CorrectlySizedTextBrowser::CorrectlySizedTextBrowser(QWidget* parent /*= nullptr*/) 
-	: QTextBrowser(parent)
+CorrectlySizedTextBrowser::CorrectlySizedTextBrowser(QWidget* parent /*= nullptr*/)
+    : QTextBrowser(parent)
 {
 	VERIFY(connect(this, &CorrectlySizedTextBrowser::textChanged, this, &CorrectlySizedTextBrowser::updateGeometry));
 }
@@ -335,9 +334,9 @@ CorrectlySizedTextBrowser::CorrectlySizedTextBrowser(QWidget* parent /*= nullptr
 //--------------------------------------------------------------------------------------------------
 QSize CorrectlySizedTextBrowser::sizeHint() const
 {
-	auto font = this->currentFont();
+	auto font     = this->currentFont();
 	auto textSize = QFontMetrics(font).size(0, this->document()->toPlainText());
-	int newWidth = textSize.width() + 30;
+	int  newWidth = textSize.width() + 30;
 	return QSize(newWidth, QTextBrowser::sizeHint().height());
 }
 

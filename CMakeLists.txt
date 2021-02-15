@@ -109,7 +109,7 @@ set(CMAKE_CXX_STANDARD 17)
 if (MSVC)
     add_compile_options(/MP)
 else(MSVC)
-    add_compile_options(-std=c++17)
+    add_compile_options(-std=c++20 -Wall -Werror)
 endif (MSVC)
 
 #-------------------------------------------------------------------------------

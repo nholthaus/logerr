@@ -57,7 +57,7 @@ QModelIndex LogModel::index(int row, int column, const QModelIndex& parent /*= Q
 	// handle top-level model entries - the most common case
 	if (parent == QModelIndex())
 	{
-		if (row < m_logData.size() && column < columnCount())
+		if ((unsigned int)row < m_logData.size() && column < columnCount())
 			return createIndex(row, column, LOG_ENTRY);
 	}
 	else if (parent.isValid())
@@ -378,8 +378,6 @@ void LogModel::appendRows()
 			auto numToRemove = totalSize - scrollbackBufferSize();
 			m_numRemoved += numToRemove;
 			totalSize -= numToRemove;
-
-			bool reset = false;
 
 			// 3 cases: remove all from the current list, some from both, or all from the new rows
 			if (!m_logData.empty())
