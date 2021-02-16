@@ -53,7 +53,6 @@
 //-------------------------
 
 class StackTraceException;
-class QPixmap;
 class QLabel;
 class QGroupBox;
 class QHBoxLayout;
@@ -67,10 +66,10 @@ class CorrectlySizedTextBrowser : public QTextBrowser
 	Q_OBJECT
 
 public:
-	CorrectlySizedTextBrowser(QWidget* parent = nullptr);
-	;
-	virtual QSize sizeHint() const override;
-	virtual QSize minimumSizeHint() const override;
+	explicit CorrectlySizedTextBrowser(QWidget* parent = nullptr);
+
+	[[nodiscard]] QSize sizeHint() const override;
+	[[nodiscard]] QSize minimumSizeHint() const override;
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -81,9 +80,9 @@ class ExceptionDialog : public QDialog
 	Q_OBJECT
 
 public:
-	ExceptionDialog(const StackTraceException& msg, bool fatal = false, QWidget* parent = nullptr);
-	ExceptionDialog(const std::exception& exception, bool fatal = false, QWidget* parent = nullptr);
-	ExceptionDialog(const char* msg, bool fatal = false, QWidget* parent = nullptr);
+	explicit ExceptionDialog(const StackTraceException& msg, bool fatal = false, QWidget* parent = nullptr);
+	explicit ExceptionDialog(const std::exception& exception, bool fatal = false, QWidget* parent = nullptr);
+	explicit ExceptionDialog(const char* msg, bool fatal = false, QWidget* parent = nullptr);
 	ExceptionDialog(QString msg, QString details, bool fatal = false, QWidget* parent = nullptr);
 
 	~ExceptionDialog() override;

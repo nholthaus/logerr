@@ -18,6 +18,7 @@
 #include <QScrollBar>
 #include <QStyle>
 #include <QVBoxLayout>
+#include <utility>
 
 //--------------------------------------------------------------------------------------------------
 //	CONSTRUCTOR
@@ -138,8 +139,8 @@ ExceptionDialog::ExceptionDialog(const char* msg, bool fatal /*= false*/, QWidge
 ExceptionDialog::ExceptionDialog(QString msg, QString details, bool fatal /*= false*/, QWidget* parent /*= nullptr*/)
     : QDialog(parent)
     , m_fatal(fatal)
-    , m_errorMessage(msg)
-    , m_errorDetails(details)
+    , m_errorMessage(std::move(msg))
+    , m_errorDetails(std::move(details))
     , m_filename("")
     , m_function("")
     , m_line("")

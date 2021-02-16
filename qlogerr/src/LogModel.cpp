@@ -99,7 +99,7 @@ int LogModel::rowCount(const QModelIndex& parent /*= QModelIndex()*/) const
 //--------------------------------------------------------------------------------------------------
 //	columnCount () []
 //--------------------------------------------------------------------------------------------------
-int LogModel::columnCount(const QModelIndex& parent /*= QModelIndex()*/) const
+int LogModel::columnCount(const QModelIndex&) const
 {
 	return m_columns.keyCount();
 }
@@ -170,7 +170,7 @@ QVariant LogModel::data(const QModelIndex& index, int role /*= Qt::DisplayRole*/
 //--------------------------------------------------------------------------------------------------
 //	headerData () []
 //--------------------------------------------------------------------------------------------------
-QVariant LogModel::headerData(int section, Qt::Orientation orientation, int role /*= Qt::DisplayRole*/) const
+QVariant LogModel::headerData(int section, Qt::Orientation, int role /*= Qt::DisplayRole*/) const
 {
 	switch (role)
 	{

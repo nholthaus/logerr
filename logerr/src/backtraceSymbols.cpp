@@ -69,7 +69,7 @@ static void                                             findAddressInSection(bfd
 //--------------------------------------------------------------------------------------------------
 //	findMatchingFile (public ) [static ]
 //--------------------------------------------------------------------------------------------------
-int findMatchingFile(struct dl_phdr_info* info, size_t size, void* data)
+int findMatchingFile(struct dl_phdr_info* info, size_t, void* data)
 {
 	FileMatch* match = (FileMatch*) data;
 

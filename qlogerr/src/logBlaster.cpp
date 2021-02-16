@@ -48,6 +48,7 @@
 #include <thread>
 
 #include <QUdpSocket>
+#include <utility>
 
 //----------------------------
 //  USING DECLARATIONS
@@ -61,10 +62,10 @@ using namespace std::chrono_literals;
 class LogBlasterPrivate
 {
 public:
-	ENSURE_QAPP;
+	ENSURE_QAPP
 
 	QHostAddress                  m_host;
-	quint16                       m_port;
+	quint16                       m_port = 0;
 	std::thread                   m_udpThread;
 	concurrent_queue<std::string> m_logQueue;
 	std::atomic_bool              m_joinAll = false;
@@ -80,7 +81,7 @@ LogBlaster::LogBlaster(QHostAddress host, quint16 port)
 {
 	Q_D(LogBlaster);
 
-	d->m_host      = host;
+	d->m_host      = std::move(host);
 	d->m_port      = port;
 	d->m_udpThread = std::thread([this]()
 	                             {

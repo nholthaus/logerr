@@ -67,7 +67,7 @@ public:
 
 private:
 
-	Q_DECLARE_PRIVATE(LogBlaster);
+	Q_DECLARE_PRIVATE(LogBlaster)
 	QScopedPointer<LogBlasterPrivate> d_ptr;
 };
 

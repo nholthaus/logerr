@@ -14,7 +14,7 @@
 
 #include "sigtermHandler.h"
 
-void sigtermHandler(int sig)
+void sigtermHandler(int)
 {
 	throw TerminateException();
 }

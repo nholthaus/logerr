@@ -104,12 +104,12 @@ find_package(Threads REQUIRED)
 #-------------------------------------------------------------------------------
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 if (MSVC)
     add_compile_options(/MP)
 else(MSVC)
-    add_compile_options(-std=c++20 -Wall -Werror)
+    add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 endif (MSVC)
 
 #-------------------------------------------------------------------------------

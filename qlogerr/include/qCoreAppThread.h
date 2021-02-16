@@ -81,7 +81,7 @@ private:
 	QCoreAppThread();
 
 private:
-	Q_DECLARE_PRIVATE(QCoreAppThread);
+	Q_DECLARE_PRIVATE(QCoreAppThread)
 	QScopedPointer<QCoreAppThreadPrivate> d_ptr;
 };
 

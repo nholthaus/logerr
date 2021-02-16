@@ -20,7 +20,7 @@
 #include <QVBoxLayout>
 #include <utility>
 
-Q_DECLARE_METATYPE(std::string);
+Q_DECLARE_METATYPE(std::string)
 
 //--------------------------------------------------------------------------------------------------
 //	LogDock (public ) []

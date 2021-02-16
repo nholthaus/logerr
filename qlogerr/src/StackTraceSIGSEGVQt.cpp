@@ -13,7 +13,7 @@
 //--------------------------------------------------------------------------------------------------
 //	stackTraceSigSev (public ) [static ]
 //--------------------------------------------------------------------------------------------------
-void stackTraceSIGSEGVQt(int sig)
+void stackTraceSIGSEGVQt(int)
 {
 	// Gather the details
 #ifdef _MSC_VER
