@@ -81,6 +81,9 @@ inline std::vector<std::string> g_argv;
 #ifndef LOGINFO
 #define LOGINFO std::cout << '[' << TimestampLite() << "] [" << APPINFO::name() << "] [INFO]     "
 #endif
+#ifndef ENDL
+#define ENDL std::endl;
+#endif
 
 // enable/disable logs
 #ifndef LOGERR_DISABLE
@@ -145,6 +148,11 @@ inline std::vector<std::string> g_argv;
 #else
 #define DO_PRAGMA(x) _Pragma(#x)
 #define TODO(x)      DO_PRAGMA(message("TODO - " #x))
+#endif
+
+// Debug - gothere
+#ifndef GOTHERE
+#define GOTHERE LOGDEBUG << "Got to " << __FUNCTION__ << " in " << __FILE__ << ":" << __LINE__ << ENDL;
 #endif
 
 #endif    // logerrMacros_h__
