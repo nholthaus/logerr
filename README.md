@@ -184,5 +184,6 @@ inside a destructor.
 - `2`:  Exited due to uncaught `logerr::exception`.
 - `3`:  Exited due to uncaught `std::exception`.
 - `4`:  Exited due to unknown exception.
+- `12`: No main thread ID set (probably missing a call to the `BEGIN` macro)
 - `13`: A logerr thread error was rethrown from a non-main thread (you probably called `LOGERR_RETHROW()` from the wrong
   place).
