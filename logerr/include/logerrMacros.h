@@ -82,7 +82,7 @@ inline std::vector<std::string> g_argv;
 #define LOGINFO std::cout << '[' << TimestampLite() << "] [" << APPINFO::name() << "] [INFO]     "
 #endif
 #ifndef ENDL
-#define ENDL std::endl;
+#define ENDL std::endl
 #endif
 
 // enable/disable logs
