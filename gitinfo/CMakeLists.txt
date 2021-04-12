@@ -22,7 +22,7 @@ ADD_CUSTOM_TARGET(
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_CURRENT_SOURCE_DIR}/gitinfo.h.in
         ${CMAKE_CURRENT_BINARY_DIR}/gitinfo.h.in
-        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/gitinfo.cmake
+        COMMAND ${CMAKE_COMMAND} -DWORKING_DIR="${CMAKE_SOURCE_DIR}" -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/gitinfo.cmake
 )
 
 #-------------------------------------------------------------------------------
