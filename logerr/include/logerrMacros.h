@@ -122,18 +122,20 @@ inline std::vector<std::string> g_argv;
 #endif
 
 /// call this in the programs `main` loop, if it has one
-#define LOGERR_RETHROW()                                         \
-	std::exception_ptr exceptionPtr = std::move(g_exceptionPtr); \
-	g_exceptionPtr                  = nullptr;                   \
-                                                                 \
-	if (exceptionPtr)                                            \
-	{                                                            \
-		if (!g_mainThreadIDSet)                                  \
-			std::exit(12);                                       \
-		if (std::this_thread::get_id() != g_mainThreadID)        \
-			std::exit(13);                                       \
-                                                                 \
-		std::rethrow_exception(exceptionPtr);                    \
+#define LOGERR_RETHROW()                                             \
+	{                                                                \
+		std::exception_ptr exceptionPtr = std::move(g_exceptionPtr); \
+		g_exceptionPtr                  = nullptr;                   \
+                                                                     \
+		if (exceptionPtr)                                            \
+		{                                                            \
+			if (!g_mainThreadIDSet)                                  \
+				std::exit(12);                                       \
+			if (std::this_thread::get_id() != g_mainThreadID)        \
+				std::exit(13);                                       \
+                                                                     \
+			std::rethrow_exception(exceptionPtr);                    \
+		}                                                            \
 	}
 
 // verify
