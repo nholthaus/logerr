@@ -39,7 +39,7 @@ StackTraceException::StackTraceException(std::string errorMessage, std::string f
 	           << std::endl
 	           << std::endl
 	           << m_trace.data();
-	m_what = std::move(whatStream.str());
+	m_what = whatStream.str();
 
 	if (fatal)
 		m_what.insert(0, "FATAL ");

@@ -36,9 +36,8 @@ using namespace std::chrono_literals;
 //----------------------------------------------------------------------------------------------------------------------
 //      CLASS: QCoreAppThreadPrivate
 //----------------------------------------------------------------------------------------------------------------------
-struct QCoreAppThreadPrivate : public QObject
+class QCoreAppThreadPrivate : public QObject
 {
-private:
 	Q_OBJECT
 
 public:
