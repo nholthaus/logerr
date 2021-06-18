@@ -42,9 +42,9 @@ list(APPEND SOURCE_FILES
         ${CMAKE_CURRENT_BINARY_DIR}/appinfo.cpp
         )
 
-if (MSVC)
-    list(APPEND SOURCE_FILES ${HEADER_FILES})
-else ()
+list(APPEND SOURCE_FILES ${HEADER_FILES})
+
+if (NOT WIN32)
     list(APPEND SOURCE_FILES src/backtraceSymbols.cpp)
 endif ()
 
@@ -63,6 +63,9 @@ if (NOT WIN32)
     if(NOT HAS_BFD_SECTION_FLAGS)
         add_compile_definitions(USE_OLD_BFD)
     endif()
+else()
+    add_compile_definitions(WINDOWS)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif ()
 
 #-------------------------------------------------------------------------------

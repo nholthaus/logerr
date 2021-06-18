@@ -10,7 +10,7 @@
 
 // The intent is for this to be defined (or not) by CMake. If you're not using CMake, define this
 // yourself (maybe based on the _MSV_VER or __GNUC__ macros)
-#ifdef _MSC_VER
+#ifdef WINDOWS
 #define WIN32_LEAN_AND_MEAN    // Exclude rarely-used stuff from Windows headers
 #include <windows.h>
 #pragma warning(push)
@@ -22,14 +22,14 @@
 #include <backtraceSymbols.h>
 #include <cxxabi.h>
 #include <execinfo.h>
-#endif    // _MSC_VER
+#endif    // WINDOWS
 
 //--------------------------------------------------------------------------------------------------
 //	StackTrace ( public )
 //--------------------------------------------------------------------------------------------------
 StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 {
-#ifdef _MSC_VER
+#ifdef WINDOWS
 	unsigned int    i;
 	void*           stack[MAX_FRAMES];
 	unsigned short  frames;
@@ -75,7 +75,7 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 	}
 
 	// get max filename length
-	int maxFilenameLength = 0;
+	size_t maxFilenameLength = 0;
 	for (auto& filename : fileNames)
 	{
 		if (filename.length() > maxFilenameLength)
@@ -97,7 +97,7 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 		      << std::endl;
 	}
 
-	m_value = std::move(value.str());
+	m_value = value.str();
 	free(symbol);
 
 #else
