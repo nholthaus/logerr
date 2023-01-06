@@ -88,7 +88,7 @@ endif (WIN32)
 if (BUILD_WITH_QT)
     configure_file(../qlogerr/qappinfo.cpp.in qappinfo.cpp @ONLY NEWLINE_STYLE UNIX)
     list(APPEND SOURCE_FILES ${CMAKE_CURRENT_BINARY_DIR}/qappinfo.cpp)
-    list(APPEND LIBRARIES Qt5::Core)
+    list(APPEND LIBRARIES Qt::Core)
 endif (BUILD_WITH_QT)
 
 list(APPEND LIBRARIES

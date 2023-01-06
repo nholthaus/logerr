@@ -61,10 +61,10 @@ configure_file(qappinfo.cpp.in qappinfo.cpp @ONLY NEWLINE_STYLE UNIX)
 
 list(APPEND LIBRARIES
         logerr
-        Qt5::Core
-        Qt5::Gui
-        Qt5::Widgets
-        Qt5::Network
+        Qt::Core
+        Qt::Gui
+        Qt::Widgets
+        Qt::Network
         Threads::Threads
         )
 

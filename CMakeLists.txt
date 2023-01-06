@@ -31,8 +31,8 @@ project(liblogerr)
 
 if (BUILD_WITH_QT)
     # SUPPORTED VERSIONS
-    set(QT_MINIMUM_VERSION 5.9.0)
-    set(QT_DEFAULT_VERSION 5.15.1)
+    set(QT_MINIMUM_VERSION 5.15.0)
+    set(QT_DEFAULT_VERSION 6.4.0)
 
     enable_testing(true)
 
@@ -45,7 +45,8 @@ if (BUILD_WITH_QT)
     # disable warnings on the Qt sources
     if (WIN32)
         add_compile_options("/experimental:external")
-        add_compile_options("/external:env:QTDIR")
+        add_compile_options("/external:env:Qt5_DIR")
+        add_compile_options("/external:env:Qt6_DIR")
         add_compile_options("/external:W0")
     endif (WIN32)
 
@@ -53,38 +54,24 @@ if (BUILD_WITH_QT)
     add_compile_definitions(BUILD_WITH_QT)
 
     # Setup the cmake prefix path so Qt can be found. Use the QTDIR variable if defined
-    if (DEFINED ENV{QTDIR})
-        set(QTDIR $ENV{QTDIR} CACHE STRING "Qt install path" FORCE)
-    else ()
-        MESSAGE(STATUS "`QTDIR` environment variable not set.")
-        if (WIN32)
-            set(QTDIR "C:/Qt/${QT_DEFAULT_VERSION}/msvc2019_64/" CACHE STRING "Qt install path")
-        else ()
-            set(QTDIR "/opt/Qt/${QT_DEFAULT_VERSION}/gcc_64/" CACHE STRING "Qt install path")
-        endif ()
+    if (NOT DEFINED ENV{Qt6_DIR} AND NOT DEFINED ENV{Qt5_DIR})
+        message(FATAL_ERROR "The environment variable `Qt6_DIR` (or `Qt5_DIR`) must be set to the install path of Qt for \
+        logerr to build with Qt (e.g. \"C:/Qt/${QT_DEFAULT_VERSION}/msvc2019_64/\"). Also make sure a version of Qt >= \
+        ${QT_MINIMUM_VERSION} is installed on your system.")
     endif ()
 
-    list(APPEND CMAKE_PREFIX_PATH ${QTDIR})
+    list(APPEND CMAKE_PREFIX_PATH $ENV{Qt6_DIR} $ENV{Qt5_DIR})
 
-    # Find the necessary Qt5 modules
-    find_package(Qt5 COMPONENTS REQUIRED
+    # Find the necessary Qt modules
+    find_package(Qt6 COMPONENTS REQUIRED
             Core
             Gui
             Widgets
             Network
             )
 
-    if (WIN32)
-        LIST(APPEND QT_SEARCH_PATHS ${Qt5_DIR} "C:/Qt/${QT_MINIMUM_VERSION}/msvc2019_64" "C:/Qt/${QT_DEFAULT_VERSION}/msvc2019_64" "E:/Qt/${QT_DEFAULT_VERSION}/msvc2019_64")
-    else ()
-        LIST(APPEND QT_SEARCH_PATHS ${Qt5_DIR} /usr/lib64/qt5/ /opt/Qt/${QT_MINIMUM_VERSION}/gcc_64 /opt/Qt/${QT_DEFAULT_VERSION}/gcc_64)
-    endif ()
-
     # Test for supported Qt version
-    find_program(QMAKE_EXECUTABLE NAMES qmake
-            HINTS ${QT_SEARCH_PATHS}
-            ENV QTDIR
-            PATH_SUFFIXES bin)
+    find_program(QMAKE_EXECUTABLE NAMES qmake PATH_SUFFIXES bin)
     execute_process(COMMAND ${QMAKE_EXECUTABLE} -query QT_VERSION OUTPUT_VARIABLE QT_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
     if (QT_VERSION VERSION_LESS QT_MINIMUM_VERSION)
         MESSAGE(FATAL_ERROR "Minimum supported Qt version: ${QT_MINIMUM_VERSION}. Installed version: ${QT_VERSION}")

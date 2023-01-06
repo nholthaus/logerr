@@ -28,9 +28,9 @@ list(APPEND SOURCE_FILES
 
 list(APPEND LIBRARIES
         qlogerr
-        Qt5::Core
-        Qt5::Gui
-        Qt5::Widgets
+        Qt::Core
+        Qt::Gui
+        Qt::Widgets
         Threads::Threads
         )
 

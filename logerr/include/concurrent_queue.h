@@ -566,7 +566,7 @@ public:
 	/// @param lhs container to swap with rhs
 	/// @param rhs container to swap with lhs
 	template<class Ty, template<class, class> class Q, class A>
-	friend void std::swap(concurrent_queue<Ty, Q, A>& lhs, concurrent_queue<Ty, Q, A>& rhs);
+	friend void swap(concurrent_queue<Ty, Q, A>& lhs, concurrent_queue<Ty, Q, A>& rhs);
 
 	/// @}
 

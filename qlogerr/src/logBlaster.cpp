@@ -48,6 +48,7 @@
 #include <thread>
 
 #include <QUdpSocket>
+#include <QVariant>
 #include <utility>
 
 //----------------------------
