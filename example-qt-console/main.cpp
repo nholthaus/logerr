@@ -11,8 +11,7 @@ int main(int argc, const char* argv[])
 
 	ENSURE_QAPP;
 
-	std::thread t = logerr::thread([]
-	                               { ERR("Goodbye, cruel world!"); });
+	auto t = logerr::thread([]{ ERR("Goodbye, cruel world!"); });
 
 	std::this_thread::sleep_for(2s);
 
