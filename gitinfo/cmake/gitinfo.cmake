@@ -13,9 +13,6 @@ set(GIT_REPO "N/A" CACHE INTERNAL "git repository name")
 set(GIT_USER "N/A" CACHE INTERNAL "git user")
 set(GIT_EMAIL "N/A" CACHE INTERNAL "Email used by git")
 
-message(STATUS "${GIT_EXECUTABLE}")
-message(STATUS "${WORKING_DIR}")
-
 if(GIT_FOUND)
 	execute_process(
 	  COMMAND ${GIT_EXECUTABLE} -C ${WORKING_DIR} rev-parse --abbrev-ref HEAD
