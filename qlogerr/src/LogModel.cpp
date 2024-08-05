@@ -30,7 +30,7 @@ LogModel::LogModel(QObject* parent)
 {
 	m_regex.setPatternOptions(QRegularExpression::MultilineOption | QRegularExpression::DotMatchesEverythingOption);
 
-	m_parserThread = std::thread(std::bind(&LogModel::parse, this));
+	m_parserThread = std::thread([this] { parse(); });
 
 	VERIFY(connect(m_updateTimer, &QTimer::timeout, this, &LogModel::appendRows));
 	m_updateTimer->start(250ms);
@@ -52,12 +52,12 @@ LogModel::~LogModel()
 QModelIndex LogModel::index(int row, int column, const QModelIndex& parent /*= QModelIndex()*/) const
 {
 	if (!this->hasIndex(row, column, parent))
-		return QModelIndex();
+		return {};
 
 	// handle top-level model entries - the most common case
 	if (parent == QModelIndex())
 	{
-		if ((unsigned int)row < m_logData.size() && column < columnCount())
+		if ((unsigned int) row < m_logData.size() && column < columnCount())
 			return createIndex(row, column, LOG_ENTRY);
 	}
 	else if (parent.isValid())
@@ -67,7 +67,7 @@ QModelIndex LogModel::index(int row, int column, const QModelIndex& parent /*= Q
 			return createIndex(row, column, parent.row());
 	}
 
-	return QModelIndex();
+	return {};
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -76,7 +76,7 @@ QModelIndex LogModel::index(int row, int column, const QModelIndex& parent /*= Q
 QModelIndex LogModel::parent(const QModelIndex& child) const
 {
 	if (child.internalId() == LOG_ENTRY)
-		return QModelIndex();
+		return {};
 	else
 		return index(child.internalId(), 0);
 }
@@ -86,7 +86,7 @@ QModelIndex LogModel::parent(const QModelIndex& child) const
 //--------------------------------------------------------------------------------------------------
 int LogModel::rowCount(const QModelIndex& parent /*= QModelIndex()*/) const
 {
-	int count = 0;
+	int count{0};
 
 	if (parent.isValid())
 		hasChildren(parent) ? count = m_logData[parent.row()].size() - columnCount() : count = 0;
@@ -123,7 +123,7 @@ bool LogModel::hasChildren(const QModelIndex& parent /*= QModelIndex()*/) const
 QVariant LogModel::data(const QModelIndex& index, int role /*= Qt::DisplayRole*/) const
 {
 	if (!index.isValid())
-		return QVariant();
+		return {};
 
 	int     column    = index.column();
 	int     row       = index.row();
@@ -147,7 +147,7 @@ QVariant LogModel::data(const QModelIndex& index, int role /*= Qt::DisplayRole*/
 		case Qt::FontRole:
 			if (type != "INFO" && column != Column::Timestamp)
 				return boldFont;
-			return QVariant();
+			return {};
 		case Qt::ForegroundRole:
 			if (column == Column::Timestamp && type == "INFO")
 				return QBrush(Qt::gray);
@@ -161,9 +161,9 @@ QVariant LogModel::data(const QModelIndex& index, int role /*= Qt::DisplayRole*/
 				return QBrush("#a67c00");
 			if (type == "DEBUG")
 				return QBrush("#4E2A84");
-			return QBrush(Qt::black);
+			return QBrush(QApplication::palette().color(QPalette::Text));
 		default:
-			return QVariant();
+			return {};
 	}
 }
 
@@ -177,7 +177,7 @@ QVariant LogModel::headerData(int section, Qt::Orientation, int role /*= Qt::Dis
 		case Qt::DisplayRole:
 			return m_columns.valueToKey(section);
 		default:
-			return QVariant();
+			return {};
 	}
 }
 
