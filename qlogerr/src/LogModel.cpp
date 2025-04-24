@@ -160,7 +160,7 @@ QVariant LogModel::data(const QModelIndex& index, int role /*= Qt::DisplayRole*/
 			if (type == "WARNING")
 				return QBrush("#a67c00");
 			if (type == "DEBUG")
-				return QBrush("#4E2A84");
+				return QBrush("#2db2e7");
 			return QBrush(QApplication::palette().color(QPalette::Text));
 		default:
 			return {};
