@@ -21,8 +21,8 @@ LogReceiver::LogReceiver(QObject* parent)
 	qRegisterMetaType<std::string>();
 
 	if (!socket.bind(QHostAddress::AnyIPv4, 52387, QUdpSocket::ShareAddress))
-		ERR(socket.errorString().toStdString());
-
+		RUN_ONCE_STARTED(ERR(std::string("Log Receiver failed to connect to port 52387: ").append(socket.errorString().toStdString())));
+	
 	socket.joinMulticastGroup(QHostAddress("239.239.239.239"));
 	connect(&socket, &QUdpSocket::readyRead, this, &LogReceiver::processPendingDatagrams);
 }
