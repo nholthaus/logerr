@@ -3,6 +3,7 @@
 //----------------------------
 
 #include "logReceiver.h"
+#include "logerrGuiApplication.h"
 
 #include <logerr>
 
