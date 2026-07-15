@@ -148,6 +148,23 @@ Errors are automatically logged, and generate substantially more information tha
 
 Sparingly. In general, always prefer `ERR` to `LOGERR`, _except_ in situations where exceptions cannot be thrown, e.g. inside a destructor.
 
+### Multicast Log Channel (Qt)
+
+`qlogerr` can broadcast log lines over UDP multicast so a separate viewer can display them: a `LogBlaster` yeets each
+line to a well-known group/port, and any number of `LogReceiver`s (e.g. a GUI app's log dock) pick them up. The channel
+defaults to `239.239.239.239:52387` and is **shared** — multiple processes can listen at once.
+
+The channel is optionally configurable via environment variables, so you can run independent logerr apps on private
+channels (so they don't see each other's logs), or move off a busy port — no rebuild required:
+
+| Variable           | Meaning                 | Default           |
+|--------------------|-------------------------|-------------------|
+| `LOGERR_LOG_PORT`  | UDP port (1–65535)      | `52387`           |
+| `LOGERR_LOG_GROUP` | Multicast group address | `239.239.239.239` |
+
+A blaster and the receiver(s) it feeds must use the same values. `LogBlaster`'s constructor also accepts an explicit
+host/port (a null address / `0` port fall back to the channel defaults above).
+
 ### TODOs
 
 `logerr` provides a `TODO` macro that generates messages at compile time:
