@@ -21,6 +21,7 @@ list(APPEND HEADER_FILES
         include/coreApplication.h
         include/ExceptionDialog.h
         include/logBlaster.h
+        include/logChannel.h
         include/logDock.h
         include/logerrGuiApplication.h
         include/LogModel.h
