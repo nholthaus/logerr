@@ -60,7 +60,10 @@ class LogBlasterPrivate;
 class LogBlaster
 {
 public:
-	LogBlaster(QHostAddress host = QHostAddress(QStringLiteral("239.239.239.239")), quint16 port = 52387);
+	/// @param host  multicast group; a null QHostAddress (default) uses LogChannel::group() (env-overridable).
+	/// @param port  UDP port; 0 (default) uses LogChannel::port() (env-overridable). Pass explicit values to force a
+	///              specific private channel (e.g. to run independent logerr apps that must not share a log stream).
+	LogBlaster(QHostAddress host = QHostAddress(), quint16 port = 0);
 	~LogBlaster();
 
 	void blast(std::string str);

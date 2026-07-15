@@ -41,6 +41,7 @@
 //----------------------------
 
 #include "logBlaster.h"
+#include "logChannel.h"
 #include <logerrMacros.h>
 
 #include <concurrent_queue.h>
@@ -82,8 +83,10 @@ LogBlaster::LogBlaster(QHostAddress host, quint16 port)
 {
 	Q_D(LogBlaster);
 
-	d->m_host      = std::move(host);
-	d->m_port      = port;
+	// Fall back to the shared log channel (env-overridable) when the caller passes the defaults; an explicit host/port
+	// forces a private channel so independent logerr apps can run without sharing a log stream.
+	d->m_host      = host.isNull() ? LogChannel::group() : std::move(host);
+	d->m_port      = port == 0 ? LogChannel::port() : port;
 	d->m_udpThread = std::thread([this]()
 	                             {
 		                             Q_D(LogBlaster);
