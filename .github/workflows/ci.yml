@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build:
+    name: ${{ matrix.os }} / Qt=${{ matrix.qt }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        qt: [true, false]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        if: ${{ matrix.qt }}
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.0'
+          cache: true
+
+      - name: Configure
+        shell: bash
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_WITH_QT=${{ matrix.qt && 'ON' || 'OFF' }}
+
+      - name: Build
+        run: cmake --build build --config Release
