@@ -78,7 +78,7 @@ namespace logerr
 			return value;
 	}
 
-	static QMainWindow* getMainWindow()
+	[[maybe_unused]] static QMainWindow* getMainWindow()
 	{
 		foreach (QWidget* w, qApp->topLevelWidgets())
 			if (QMainWindow* mainWin = qobject_cast<QMainWindow*>(w))
