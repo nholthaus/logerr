@@ -327,8 +327,14 @@ string APPINFO::home()
 // Path Info
 string APPINFO::appDataDir()
 {
-	string name = git::repo;
-	if (name != APPINFO::name() && !APPINFO::name().empty())
+	// <organization>/<application> — a STABLE per-app location (e.g. STR/helen), matching the Qt QStandardPaths
+	// AppDataLocation layout. Do NOT use git::repo here: that is the source-checkout directory name (helen, helen2, a
+	// worktree, …), which would make the runtime data/log path vary by build tree — a bug. Fall back to the app name
+	// alone if no organization is set.
+	string name = APPINFO::organization();
+	if (name.empty())
+		name = APPINFO::name();
+	else if (!APPINFO::name().empty())
 		name.append("/").append(APPINFO::name());
 
 	if constexpr (IS_LINUX)
