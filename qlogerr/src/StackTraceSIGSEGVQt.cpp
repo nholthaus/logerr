@@ -47,9 +47,20 @@ void stackTraceSIGSEGVQt(int)
 
 	LOGINFO << QAPPINFO::name().toLocal8Bit().constData() << " terminated due to a fatal error (application crash). Exiting with code 1..." << std::endl;
 
-	// try to show a dialog
-	ExceptionDialog dialog(QString("%1 Crashed.\nThe application will now terminate.").arg(QAPPINFO::name()), sDetails, true);
-	dialog.exec();
+	// The crash is now fully recorded (logged above + written to the crash-dump file), so termination is safe with or
+	// without a dialog. Show the interactive dialog ONLY when a human can actually dismiss it: a MODAL dialog raised
+	// from a crash on a display-less run blocks forever, turning a crash into a silent hang (the process never exits).
+	// Suppress it when there is no interactive display — the offscreen QPA platform (headless CI / automated tests) or
+	// a non-GUI application — or when the host opts out via LOGERR_SUPPRESS_CRASH_DIALOG (an unattended run that does
+	// have a display, e.g. one driven by an automation harness). All three are general, host-agnostic signals.
+	const auto* guiApp        = qobject_cast<QGuiApplication*>(QCoreApplication::instance());
+	const bool  hasDisplay    = guiApp && guiApp->platformName() != QLatin1String("offscreen");
+	const bool  suppressByEnv = qEnvironmentVariableIsSet("LOGERR_SUPPRESS_CRASH_DIALOG");
+	if (hasDisplay && !suppressByEnv)
+	{
+		ExceptionDialog dialog(QString("%1 Crashed.\nThe application will now terminate.").arg(QAPPINFO::name()), sDetails, true);
+		dialog.exec();
+	}
 
 	std::exit(1);
 }
