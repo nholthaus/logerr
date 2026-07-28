@@ -91,8 +91,22 @@ namespace logerr
 //  MACROS
 //----------------------------
 
-// Run once the event loop starts
+// Run once the event loop starts. The expression is DEFERRED to the next event-loop turn, so it must
+// NOT reference any local that has left scope by then. Safe only for objects with process/app lifetime
+// (globals, `this`-owned members that outlive the deferral). For an expression that names STACK LOCALS,
+// use RUN_ONCE_STARTED_CAPTURE and copy those locals by value.
 #define RUN_ONCE_STARTED(expression) QTimer::singleShot(0, [&] { expression });
+
+// Deferred one-shot like RUN_ONCE_STARTED, but the caller NAMES the variables to copy BY VALUE into the
+// lambda, so a stack local referenced by the expression is captured before the enclosing scope exits and
+// cannot dangle (the lambda runs on the next event-loop turn, after that scope is gone). This avoids the
+// stack-use-after-scope of a by-reference deferral without a blanket [=] (which would copy QObjects and
+// silently capture `this`). Wrap the capture list in parentheses so its commas are not read as macro-arg
+// separators; qApp is the context object so the one-shot is bound to the application's lifetime.
+//   e.g. RUN_ONCE_STARTED_CAPTURE((automation, port), automation->start(port););
+#define LOGERR_DETAIL_STRIP_PARENS(...) __VA_ARGS__
+#define RUN_ONCE_STARTED_CAPTURE(captures, expression)                                                                          \
+	QTimer::singleShot(0, qApp, [LOGERR_DETAIL_STRIP_PARENS captures] { expression });
 
 /// Place at the very beginning of the `main` function.
 #ifndef LOGERR_GUI_APP_BEGIN
