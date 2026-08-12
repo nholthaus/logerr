@@ -54,7 +54,16 @@ jobs:
       - name: Install build and coverage dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y binutils-dev libiberty-dev gcovr
+          sudo apt-get install -y binutils-dev libiberty-dev
+
+      # Ubuntu 24.04 ships gcovr 7.0, which predates merge-lines. Pin the report generator so template-instantiation
+      # coverage is merged consistently with local builds and future runner-image package updates cannot change it.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install gcovr
+        run: python -m pip install --disable-pip-version-check gcovr==8.6
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
