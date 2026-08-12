@@ -23,15 +23,15 @@ constexpr const char* regex     = R"(\s*?\[(.*?)\]\s*?\[(.*?)\]\s*?\[(.*?)\]\s*?
 //	LogModel (public ) []
 //--------------------------------------------------------------------------------------------------
 LogModel::LogModel(QObject* parent)
-    : QAbstractItemModel(parent)
-    , m_regex(regex)
-    , m_columns(QMetaEnum::fromType<Column>())
-    , m_updateTimer(new QTimer(this))
+	: QAbstractItemModel(parent)
+	, m_regex(regex)
+	, m_columns(QMetaEnum::fromType<Column>())
+	, m_updateTimer(new QTimer(this))
+	, m_parserThread(THREAD_SETUP({
+		ON_DATA_RECEIVED({ EMIT(parse(data)); });
+	}))
 {
 	m_regex.setPatternOptions(QRegularExpression::MultilineOption | QRegularExpression::DotMatchesEverythingOption);
-
-	m_parserThread = std::thread([this] { parse(); });
-
 	VERIFY(connect(m_updateTimer, &QTimer::timeout, this, &LogModel::appendRows));
 	m_updateTimer->start(250ms);
 }
@@ -40,11 +40,7 @@ LogModel::LogModel(QObject* parent)
 //	~LogModel () []
 //--------------------------------------------------------------------------------------------------
 LogModel::~LogModel()
-{
-	m_joinAll.store(true);
-	if (m_parserThread.joinable())
-		m_parserThread.join();
-}
+    = default;
 
 //--------------------------------------------------------------------------------------------------
 //	index () []
@@ -60,7 +56,8 @@ QModelIndex LogModel::index(int row, int column, const QModelIndex& parent /*= Q
 		if ((unsigned int) row < m_logData.size() && column < columnCount())
 			return createIndex(row, column, LOG_ENTRY);
 	}
-	else if (parent.isValid())
+	else if (parent.model() == this && parent.internalId() == LOG_ENTRY && parent.row() >= 0 &&
+	         static_cast<size_t>(parent.row()) < m_logData.size())
 	{
 		const QStringList& logEntry = m_logData[parent.row()];
 		if (logEntry.size() >= columnCount(parent))
@@ -75,10 +72,13 @@ QModelIndex LogModel::index(int row, int column, const QModelIndex& parent /*= Q
 //--------------------------------------------------------------------------------------------------
 QModelIndex LogModel::parent(const QModelIndex& child) const
 {
+	if (!child.isValid() || child.model() != this)
+		return {};
+
 	if (child.internalId() == LOG_ENTRY)
 		return {};
 	else
-		return index(child.internalId(), 0);
+		return index(static_cast<int>(child.internalId()), 0);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -89,9 +89,9 @@ int LogModel::rowCount(const QModelIndex& parent /*= QModelIndex()*/) const
 	int count{0};
 
 	if (parent.isValid())
-		hasChildren(parent) ? count = m_logData[parent.row()].size() - columnCount() : count = 0;
+		hasChildren(parent) ? count = static_cast<int>(m_logData[static_cast<size_t>(parent.row())].size()) - columnCount(parent) : count = 0;
 	else
-		count = m_logData.size();
+		count = static_cast<int>(m_logData.size());
 
 	return count;
 }
@@ -111,8 +111,9 @@ bool LogModel::hasChildren(const QModelIndex& parent /*= QModelIndex()*/) const
 {
 	if (!parent.isValid())
 		return !m_logData.empty();
-	else if (parent.internalId() == LOG_ENTRY)
-		return m_logData[parent.row()].size() > columnCount();
+	else if (parent.model() == this && parent.internalId() == LOG_ENTRY && parent.row() >= 0 &&
+	         static_cast<size_t>(parent.row()) < m_logData.size())
+		return m_logData[static_cast<size_t>(parent.row())].size() > columnCount(parent);
 	else
 		return false;
 }
@@ -125,11 +126,16 @@ QVariant LogModel::data(const QModelIndex& index, int role /*= Qt::DisplayRole*/
 	if (!index.isValid())
 		return {};
 
-	int     column    = index.column();
-	int     row       = index.row();
-	int     parentRow = index.parent().row() - m_numRemoved;
-	bool    child     = index.parent().isValid();
-	QString type      = !child ? m_logData[row][Column::Type] : m_logData[parentRow][Column::Type];
+	const int column    = index.column();
+	const int row       = index.row();
+	const QModelIndex parentIndex = index.parent();
+	const int parentRow = parentIndex.row();
+	const bool child     = parentIndex.isValid();
+	if ((!child && (row < 0 || static_cast<size_t>(row) >= m_logData.size())) ||
+	    (child && (parentRow < 0 || static_cast<size_t>(parentRow) >= m_logData.size())))
+		return {};
+	const QString type = !child ? m_logData[static_cast<size_t>(row)][Column::Type]
+	                            : m_logData[static_cast<size_t>(parentRow)][Column::Type];
 
 	QFont boldFont;
 	boldFont.setWeight(QFont::Bold);
@@ -138,11 +144,11 @@ QVariant LogModel::data(const QModelIndex& index, int role /*= Qt::DisplayRole*/
 	{
 		case Qt::DisplayRole:
 			if (!child)
-				return m_logData[row][column];
+				return m_logData[static_cast<size_t>(row)][column];
 			else if (column < Column::Message)
 				return "";
 			else
-				return m_logData[parentRow][row + columnCount()];
+				return m_logData[static_cast<size_t>(parentRow)][row + columnCount(parentIndex)];
 			break;
 		case Qt::FontRole:
 			if (type != "INFO" && column != Column::Timestamp)
@@ -186,16 +192,14 @@ QVariant LogModel::headerData(int section, Qt::Orientation, int role /*= Qt::Dis
 //--------------------------------------------------------------------------------------------------
 bool LogModel::insertRows(int row, int count, const QModelIndex& parent /*= QModelIndex()*/)
 {
-	assert(row >= 0);
-	assert(row <= rowCount());
+	if (parent.isValid() || row < 0 || row > rowCount() || count <= 0)
+		return false;
 
-	this->beginInsertRows(parent, row, row + count);
+	this->beginInsertRows(parent, row, row + count - 1);
 
-	auto insertionItr = m_logData.begin();
-	std::advance(insertionItr, row);
-
-	for (int i = 0; i < count; ++i)
-		m_logData.insert(insertionItr++, QStringList());
+	QStringList emptyRow;
+	emptyRow.resize(columnCount());
+	m_logData.insert(m_logData.begin() + row, static_cast<size_t>(count), emptyRow);
 
 	this->endInsertRows();
 
@@ -207,7 +211,7 @@ bool LogModel::insertRows(int row, int count, const QModelIndex& parent /*= QMod
 //--------------------------------------------------------------------------------------------------
 bool LogModel::setData(const QModelIndex& index, const QVariant& value, int role /*= Qt::EditRole*/)
 {
-	assert(value.type() == QVariant::String);
+	assert(value.metaType().id() == QMetaType::QString);
 
 	if (!index.isValid())
 		return false;
@@ -252,8 +256,8 @@ void LogModel::appendRow(const QString& value)
 		m_logData.back().append(match.captured(4).trimmed());
 		if (!match.captured(5).isEmpty())
 		{
-			QStringList details = match.captured(5).split('\n');
-			for (auto& detail : details)
+			const QStringList details = match.captured(5).split('\n');
+			for (const auto& detail : details)
 				m_logData.back().append(detail.trimmed());
 		}
 	}
@@ -274,7 +278,7 @@ void LogModel::appendRow(const std::string& value)
 //--------------------------------------------------------------------------------------------------
 void LogModel::queueLogEntry(std::string string)
 {
-	m_inbox.push(std::move(string));
+	m_parserThread.enqueue(std::move(string));
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -293,8 +297,8 @@ void LogModel::setScrollbackBufferSize(size_t size)
 	if (size < m_logData.size())
 	{
 		emit this->beginResetModel();
-		size_t amountToRemove = m_logData.size() - size;
-		m_logData.erase(m_logData.begin(), m_logData.begin() + amountToRemove);
+		const size_t amountToRemove = m_logData.size() - size;
+		m_logData.erase(m_logData.begin(), m_logData.begin() + static_cast<std::ptrdiff_t>(amountToRemove));
 		m_scrollbackBufferSize = size;
 		emit this->endResetModel();
 	}
@@ -307,52 +311,45 @@ void LogModel::setScrollbackBufferSize(size_t size)
 //--------------------------------------------------------------------------------------------------
 //	parse (private ) []
 //--------------------------------------------------------------------------------------------------
-void LogModel::parse()
+QStringList LogModel::parse(const std::string& str) const
 {
-	std::string str;
-	while (!m_joinAll)
+	const QString value = QString::fromStdString(str);
+
+	// don't put whitespace lines into the model
+	if (value.trimmed().isEmpty())
+		return {};
+
+	auto match = m_regex.match(value);
+
+	QStringList parsedList;
+
+	if (!match.hasMatch())
 	{
-		if (m_inbox.try_pop_for(str, 100ms))
+		// this can happen for raw cout writes that didn't use the macros.
+		QStringList valueList = value.split('\n');
+		parsedList.append(QString::fromStdString(TimestampLite()));
+		parsedList.append("unset_name");
+		parsedList.append("INFO");
+		parsedList.append(valueList.front().trimmed());
+		valueList.pop_front();
+		if (!valueList.isEmpty())
+			parsedList.append(valueList);
+	}
+	else
+	{
+		parsedList.append(match.captured(1));
+		parsedList.append(match.captured(2));
+		parsedList.append(match.captured(3));
+		parsedList.append(match.captured(4).trimmed());
+		if (!match.captured(5).isEmpty())
 		{
-			QString value = QString::fromStdString(str);
-
-			// don't put whitespace lines into the model
-			if (value.trimmed().isEmpty())
-				continue;
-
-			auto match = m_regex.match(value);
-
-			QStringList parsedList;
-
-			if (!match.hasMatch())
-			{
-				// this can happen for raw cout writes that didn't use the macros.
-				QStringList valueList = value.split('\n');
-				parsedList.append(QString::fromStdString(TimestampLite()));
-				parsedList.append("unset_name");
-				parsedList.append("INFO");
-				parsedList.append(valueList.front().trimmed());
-				valueList.pop_front();
-				if (!valueList.isEmpty())
-					parsedList.append(valueList);
-			}
-			else
-			{
-				parsedList.append(match.captured(1));
-				parsedList.append(match.captured(2));
-				parsedList.append(match.captured(3));
-				parsedList.append(match.captured(4).trimmed());
-				if (!match.captured(5).isEmpty())
-				{
-					QStringList details = match.captured(5).split('\n');
-					for (auto& detail : details)
-						parsedList.append(detail.trimmed());
-				}
-			}
-
-			m_outbox.emplace(std::move(parsedList));
+			const QStringList details = match.captured(5).split('\n');
+			for (const auto& detail : details)
+				parsedList.append(detail.trimmed());
 		}
 	}
+
+	return parsedList;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -360,11 +357,12 @@ void LogModel::parse()
 //--------------------------------------------------------------------------------------------------
 void LogModel::appendRows()
 {
-	QStringList             row;
 	std::deque<QStringList> rows;
-	while (m_outbox.try_pop(row) && !m_joinAll)
+	QStringList             row;
+	while (m_parserThread.outputs().try_pop(row))
 	{
-		rows.push_back(row);
+		if (!row.isEmpty())
+			rows.push_back(std::move(row));
 	}
 
 	if (!rows.empty())
@@ -376,32 +374,34 @@ void LogModel::appendRows()
 		if (totalSize > 2 * m_scrollbackBufferSize)
 		{
 			auto numToRemove = totalSize - scrollbackBufferSize();
-			m_numRemoved += numToRemove;
 			totalSize -= numToRemove;
 
 			// 3 cases: remove all from the current list, some from both, or all from the new rows
 			if (!m_logData.empty())
 			{
 				auto numToRemoveFromHere = std::min(numToRemove, m_logData.size());
-				this->beginRemoveRows(QModelIndex(), 0, numToRemoveFromHere - 1);
-				m_logData.erase(m_logData.begin(), m_logData.begin() + numToRemoveFromHere);
+				this->beginRemoveRows(QModelIndex(), 0, static_cast<int>(numToRemoveFromHere - 1));
+				m_logData.erase(m_logData.begin(), m_logData.begin() + static_cast<std::ptrdiff_t>(numToRemoveFromHere));
 				emit this->endRemoveRows();
 				numToRemove -= numToRemoveFromHere;
 			}
 			if (numToRemove && !rows.empty())
 			{
 				auto numToRemoveFromHere = std::min(numToRemove, rows.size());
-				rows.erase(rows.begin(), rows.begin() + numToRemoveFromHere);
+				rows.erase(rows.begin(), rows.begin() + static_cast<std::ptrdiff_t>(numToRemoveFromHere));
 				numToRemove -= numToRemoveFromHere;
 			}
 
 			assert(numToRemove == 0);
 		}
 
-		auto first = m_logData.size();
-		auto last  = totalSize - 1;
-		this->beginInsertRows(QModelIndex(), first, last);
-		m_logData.insert(m_logData.end(), rows.begin(), rows.end());
-		this->endInsertRows();
+		if (!rows.empty())
+		{
+			auto first = m_logData.size();
+			auto last  = totalSize - 1;
+			this->beginInsertRows(QModelIndex(), static_cast<int>(first), static_cast<int>(last));
+			m_logData.insert(m_logData.end(), rows.begin(), rows.end());
+			this->endInsertRows();
+		}
 	}
 }

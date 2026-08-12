@@ -47,8 +47,6 @@
 
 #include <concurrent_queue.h>
 
-#include <atomic>
-#include <condition_variable>
 #include <string>
 #include <thread>
 
@@ -72,9 +70,8 @@ public:
 
 protected:
 
-	concurrent_queue<std::string>	m_logQueue;
-	std::thread						m_thread;
-	std::atomic_bool				m_joinAll{false};
+	concurrent_queue<std::string> m_logQueue;
+	std::jthread                  m_thread;
 };
 
 #endif // LogFileWriter_h__

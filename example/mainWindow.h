@@ -27,7 +27,7 @@
 //-------------------------
 
 #include <QMainWindow>
-#include <thread>
+#include <logerrThread.h>
 
 //-------------------------
 //	FORWARD DECLARATIONS
@@ -52,9 +52,9 @@ protected:
 	void runThread3();
 
 protected:
-	std::thread      m_thread1;
-	std::thread      m_thread2;
-	std::thread      m_thread3;
+	logerr::thread   m_thread1;
+	logerr::thread   m_thread2;
+	logerr::thread   m_thread3;
 	std::atomic_bool m_joinAll = false;
 };
 

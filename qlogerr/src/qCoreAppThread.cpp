@@ -15,9 +15,11 @@ using namespace std::chrono_literals;
 //  TRANSLATION UNIT SCOPE VARIABLES
 //------------------------------------
 
-// not a global in the `C` sense of the world because it is only visible inside this cpp file. However, logically speaking
-// it's an access-controlled global.
-static std::weak_ptr<QCoreAppThread> globalInstance;
+namespace
+{
+	// Logically global, but access-controlled and confined to this translation unit.
+	std::weak_ptr<QCoreAppThread> globalInstance;
+}
 
 //----------------------------------------------------------------------------------------------------------------------
 //  function: instance()
@@ -49,7 +51,4 @@ QCoreAppThread::QCoreAppThread()
 //----------------------------------------------------------------------------------------------------------------------
 //     DESTRUCTOR
 //----------------------------------------------------------------------------------------------------------------------
-QCoreAppThread::~QCoreAppThread()
-{
-
-}
+QCoreAppThread::~QCoreAppThread() = default;

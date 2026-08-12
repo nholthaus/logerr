@@ -1,60 +1,9 @@
-#-------------------------------------------------------------------------------
-#	CMAKE SETTINGS
-#-------------------------------------------------------------------------------
+add_executable(logerrExample-console main.cpp)
+target_link_libraries(logerrExample-console PRIVATE logerr::logerr)
+logerr_enable_project_warnings(logerrExample-console)
+set_target_properties(logerrExample-console PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-cmake_minimum_required(VERSION 3.16)
-
-#-------------------------------------------------------------------------------
-#	PROJECT SETTINGS
-#-------------------------------------------------------------------------------
-
-PROJECT(logerrExample-console)
-
-#-------------------------------------------------------------------------------
-#	SOURCE CODE
-#-------------------------------------------------------------------------------
-
-# .h files
-list(APPEND HEADER_FILES
-
-        )
-
-# .cpp files
-list(APPEND SOURCE_FILES
-        main.cpp
-        )
-
-list(APPEND SOURCE_FILES ${HEADER_FILES})
-
-#-------------------------------------------------------------------------------
-#	ADDITIONAL LIBRARIES
-#-------------------------------------------------------------------------------
-
-list(APPEND LIBRARIES
-        logerr
-        )
-
-# Remove duplicate library dependencies.
-list(REMOVE_DUPLICATES LIBRARIES)
-
-#-------------------------------------------------------------------------------
-#	GENERATE TEST EXECUTABLE
-#-------------------------------------------------------------------------------
-
-# Generate the executable
-add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${RESOURCES})
-
-# link libraries
-target_link_libraries(${PROJECT_NAME} ${LIBRARIES})
-
-# Use the automatically determined RPATH values
-set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
-
-#-------------------------------------------------------------------------------
-#	DEPLOY QT DLLS
-#-------------------------------------------------------------------------------
-
-if (WIN32 AND BUILD_WITH_QT)
+if(WIN32 AND BUILD_WITH_QT)
     include(windeployqt)
-    windeployqt(${PROJECT_NAME} bin)
-endif ()
+    logerr_windeployqt(logerrExample-console)
+endif()

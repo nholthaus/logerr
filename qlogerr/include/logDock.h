@@ -81,16 +81,16 @@ public:
 
 public slots:
 
-	void queueLogEntry(std::string str);
+	void queueLogEntry(std::string str) const;
 
 private slots:
 
-	void on_scrollbackBufferSize_changed();
-	void on_showTimestampsCheckBox_toggled();
-	void on_showModulesCheckBox_toggled();
-	void autoscroll();
-	void stableScroll();
-	void search(const QString& value);
+	void on_scrollbackBufferSize_changed() const;
+	void on_showTimestampsCheckBox_toggled() const;
+	void on_showModulesCheckBox_toggled() const;
+	void autoscroll() const;
+	void stableScroll() const;
+	void search(const QString& value) const;
 
 private:
 	LogModel*      m_logModel      = nullptr;

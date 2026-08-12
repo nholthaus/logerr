@@ -10,33 +10,50 @@ A simple, portable, logging and error handling system. Logerr features:
 
 ## Build
 
-Logerr comes in two varieties: a vanilla c++ version, and a Qt compatible version
+Logerr requires CMake 3.25 or newer and a C++23 compiler. On Linux, stack traces also require the binutils development
+libraries (`binutils-dev` and `libiberty-dev` on Debian/Ubuntu).
+
+Logerr comes in two varieties: a standard C++ library and a Qt 6 integration library.
 
 ### Build Vanilla C++
 
-``` bash
-cd <logerr root dir>
-mkdir build
-cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-cmake --build . -- -j4
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
 ```
 
 ### Build with Qt
 
-``` bash
-cd <logerr root dir>
-mkdir build
-cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_QT=On ..
-cmake --build . -- -j4
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_QT=ON
+cmake --build build --parallel
 ```
+
+Qt is found with CMake's standard package discovery. If it is not already on CMake's prefix path, pass either
+`-DCMAKE_PREFIX_PATH=/path/to/Qt/6.x/<compiler>` or `-DQt6_DIR=/path/to/Qt/6.x/<compiler>/lib/cmake/Qt6`; no environment
+variable is required.
+
+To build and run the complete GoogleTest suite, add `-DBUILD_TESTING=ON`, then run:
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+For multi-config generators such as Visual Studio, also pass `--config Release` when building and
+`--build-config Release` to CTest.
 
 ### Adding to your project
 
-The easiest way to incorporate `logerr` is to add it to your project as a subdirectory (or submodule), and then link to
-the
-`logerr` or `qlogerr` library, depending on which flavor you built.
+The easiest way to incorporate `logerr` is to add it to your project as a subdirectory (or submodule), then link to
+`logerr::logerr` or `logerr::qlogerr`:
+
+```cmake
+add_subdirectory(path/to/logerr)
+target_link_libraries(my_target PRIVATE logerr::logerr) # or logerr::qlogerr
+```
+
+Repository warning flags, implementation definitions, and Qt lookup settings are private. C++23 and the compiler/linker
+options that retain stack-trace symbols intentionally propagate to consumers so stack traces remain symbolizable.
 
 ## Usage
 
@@ -144,9 +161,13 @@ performance impact to your core code.
 
 #### ERR vs. LOGERR
 
-Errors are automatically logged, and generate substantially more information that the `LOGERR` call. So when should you use `LOGERR`?
+`ERR` throws a `logerr::exception` carrying its source location and a stack captured at the throw site. Use it when the
+current exception boundary can safely surface the failure.
 
-Sparingly. In general, always prefer `ERR` to `LOGERR`, _except_ in situations where exceptions cannot be thrown, e.g. inside a destructor.
+`LOGERR` and `LOGWARNING` do not throw, but include `[file:line function]` automatically. They are the right choice when
+the caller must preserve its return/cleanup contract, including destructors and error-isolation paths. For the rarer
+non-throwing fault that warrants full symbolization, use `LOGERR_TRACE(message)`; it captures a stack at that call site
+and then preserves normal control flow.
 
 ### Multicast Log Channel (Qt)
 

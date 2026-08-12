@@ -26,8 +26,7 @@ LogReceiver::LogReceiver(QObject* parent)
 	// receive the log stream. Port/group default to 239.239.239.239:52387 and are optionally overridable via
 	// environment (see logChannel.h). ShareAddress alone is a no-op on Windows (it needs SO_REUSEADDR) — so a second
 	// process would fail to bind. ReuseAddressHint sets SO_REUSEADDR, letting every listener share the port portably.
-	const quint16 port = LogChannel::port();
-	if (!socket.bind(QHostAddress::AnyIPv4, port, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint))
+	if (const quint16 port = LogChannel::port(); !socket.bind(QHostAddress::AnyIPv4, port, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint))
 	{
 		// Non-fatal: the multicast log VIEW is optional (this process's own logs still reach its dock/file directly).
 		// A failed bind must never disrupt the application, so warn rather than throw — another listener may simply
@@ -48,12 +47,10 @@ LogReceiver::LogReceiver(QObject* parent)
 //----------------------------------------------------------------------------------------------------------------------
 void LogReceiver::processPendingDatagrams()
 {
-	QByteArray datagram;
-
 	while (socket.hasPendingDatagrams())
 	{
-		QNetworkDatagram dgram = socket.receiveDatagram();
-		std::string      logEntry(dgram.data().toStdString());
-		emit             readyRead(logEntry);
+		const QNetworkDatagram dgram = socket.receiveDatagram();
+		const std::string logEntry(dgram.data().toStdString());
+		emit              readyRead(logEntry);
 	}
 }

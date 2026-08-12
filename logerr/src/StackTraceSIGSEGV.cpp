@@ -18,9 +18,9 @@ void stackTraceSIGSEGV(int)
 {
 	// Gather the details
 #ifdef _MSC_VER
-	StackTrace trace(7); // determined empirically
+	const StackTrace trace(7); // determined empirically
 #else
-	StackTrace trace(2); // determined empirically
+	const StackTrace trace(2); // determined empirically
 #endif
 
 	std::string time = "\n\nTIME:\n\n";
@@ -28,7 +28,7 @@ void stackTraceSIGSEGV(int)
 	time += "    Crash Time   : " + std::string(TimestampLite()) + "\n";
 	time += "\n";
 
-	std::string crashDetails = APPINFO::name() + " Crashed! :'(" + time + APPINFO::systemDetails() + "STACK TRACE:\n\n" + trace.data();
+	const std::string crashDetails = APPINFO::name() + " Crashed! :'(" + time + APPINFO::systemDetails() + "STACK TRACE:\n\n" + trace.data();
 	LOGERR << crashDetails << std::endl;
 
 	// make sure the directory exists
@@ -40,17 +40,21 @@ void stackTraceSIGSEGV(int)
 
 	std::string crashdumpFileName = std::string("crashdump-") + currentDateTime + ".txt";
 	if (!APPINFO::name().empty())
-	{
-		crashdumpFileName.insert(0,'-', 1);
-		crashdumpFileName.insert(0, APPINFO::name());
-	}
+		crashdumpFileName.insert(0, APPINFO::name() + '-');
 
 	// write a dedicated crash dump file too for good measure
-	std::ofstream crashDumpFile;
-	crashDumpFile.open(APPINFO::crashDumpDir() + '/' + crashdumpFileName, std::ios::out);
-	crashDumpFile << crashDetails;
-	crashDumpFile.flush();
-	crashDumpFile.close();
+	const auto crashDumpPath = std::filesystem::path(APPINFO::crashDumpDir()) / crashdumpFileName;
+	std::ofstream crashDumpFile(crashDumpPath, std::ios::out);
+	if (crashDumpFile.is_open())
+	{
+		crashDumpFile << crashDetails;
+		crashDumpFile.flush();
+		crashDumpFile.close();
+	}
+	else
+	{
+		LOGERR << "Failed to open crash dump for writing: " << crashDumpPath.string() << std::endl;
+	}
 
 	LOGINFO << APPINFO::name() << " terminated due to a fatal error (application crash). Exiting with code 1..." << std::endl;
 
@@ -63,6 +67,7 @@ void stackTraceSIGSEGV(int)
 void CrashAndBurn()
 {
 	int* crash = nullptr;
+	// Intentional: this public diagnostic helper verifies the installed fatal-signal path.
+	// NOLINTNEXTLINE(clang-analyzer-core.NullDereference)
 	*crash = 0xDEAD;
 }
-

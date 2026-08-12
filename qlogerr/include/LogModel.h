@@ -38,23 +38,21 @@
 //--------------------------------------------------------------------------------------------------
 
 #pragma once
-#ifndef LogModel_h__
-#define LogModel_h__
+#ifndef LogModel_h_
+#define LogModel_h_
 
 //-------------------------
 //	INCLUDES
 //-------------------------
 
-#include <concurrent_queue.h>
+#include <QEventThread.h>
 
 #include <deque>
 #include <string>
-#include <thread>
 
 #include <QAbstractItemModel>
 #include <QMetaEnum>
 #include <QRegularExpression>
-#include <QStringList>
 
 //-------------------------
 //	FORWARD DECLARATIONS
@@ -106,23 +104,19 @@ public slots:
 	void   setScrollbackBufferSize(size_t size);
 
 private:
-	void parse();
-	void appendRows();
+	QStringList parse(const std::string& value) const;
+	void        appendRows();
 
 protected:
 	QRegularExpression      m_regex;
 	std::deque<QStringList> m_logData;
 	QMetaEnum               m_columns;
 
-	concurrent_queue<std::string> m_inbox;
-	concurrent_queue<QStringList> m_outbox;
-	QTimer*                       m_updateTimer;
-	std::thread                   m_parserThread;
-
-	std::atomic_bool m_joinAll = false;
-
 	size_t m_scrollbackBufferSize = 10000;
-	size_t m_numRemoved           = 0;    // The number of entries removed from the model for exceeding the scroll buffer size
+
+	QTimer* m_updateTimer;
+	// Declared last: joins before parser state is destroyed.
+	QEventThread<std::string, QStringList> m_parserThread;
 };
 
-#endif    // LogModel_h__
+#endif    // LogModel_h_

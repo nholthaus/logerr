@@ -46,7 +46,7 @@
 
 #include <filesystem>
 #include <iostream>
-#include <string_view>
+#include <string>
 #include <thread>
 
 #include <QMainWindow>
@@ -70,14 +70,6 @@
 
 namespace logerr
 {
-	template<class T>
-	constexpr std::string_view printable(const T& value)
-	{
-		if constexpr (std::is_same_v<QString, std::remove_cv_t<T>>) return value.toStdString();
-		else if constexpr (std::is_same_v<std::string, std::remove_cv_t<T>>)
-			return value;
-	}
-
 	[[maybe_unused]] static QMainWindow* getMainWindow()
 	{
 		foreach (QWidget* w, qApp->topLevelWidgets())
@@ -116,8 +108,6 @@ namespace logerr
 	int code          = 0;                                                                                                      \
 	g_mainThreadID    = std::this_thread::get_id();                                                                             \
 	g_mainThreadIDSet = true;                                                                                                   \
-                                                                                                                                \
-	QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);                                                                    \
                                                                                                                                 \
 	Application app(argc, argv);                                                                                                \
 	app.setOrganizationName(QAPPINFO::organization());                                                                          \

@@ -5,15 +5,14 @@
 
 #include <QCheckBox>
 #include <QFontDatabase>
-#include <QFrame>
 #include <QGroupBox>
-#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QIntValidator>
 #include <QLabel>
 #include <QLayout>
 #include <QLineEdit>
 #include <QScrollBar>
+#include <QStyle>
 #include <QStyleFactory>
 #include <QToolButton>
 #include <QTreeView>
@@ -51,7 +50,7 @@ LogDock::LogDock()
 {
 	qRegisterMetaType<std::string>();
 
-	QFont monospaceFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+	const QFont monospaceFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
 
 	this->setWidget(m_topLevelWidget);
 
@@ -110,7 +109,11 @@ LogDock::LogDock()
 	m_logProxyModel->setDynamicSortFilter(true);
 
 	m_logView->setModel(m_logProxyModel);
-	m_logView->setStyle(QStyleFactory::create("fusion"));
+	if (auto* fusionStyle = QStyleFactory::create("fusion"))
+	{
+		fusionStyle->setParent(m_logView);
+		m_logView->setStyle(fusionStyle);
+	}
 	m_logView->setFont(monospaceFont);
 	m_logView->setHeaderHidden(false);
 	m_logView->setAllColumnsShowFocus(true);
@@ -144,14 +147,12 @@ LogDock::LogDock()
 //--------------------------------------------------------------------------------------------------
 //	~LogDock (public ) []
 //--------------------------------------------------------------------------------------------------
-LogDock::~LogDock()
-{
-}
+LogDock::~LogDock() = default;
 
 //--------------------------------------------------------------------------------------------------
 //	write (public ) []
 //--------------------------------------------------------------------------------------------------
-void LogDock::queueLogEntry(std::string str)
+void LogDock::queueLogEntry(std::string str) const
 {
 	m_logModel->queueLogEntry(std::move(str));
 }
@@ -159,7 +160,7 @@ void LogDock::queueLogEntry(std::string str)
 //--------------------------------------------------------------------------------------------------
 //	on_scrollbackBufferSize_changed (private ) []
 //--------------------------------------------------------------------------------------------------
-void LogDock::on_scrollbackBufferSize_changed()
+void LogDock::on_scrollbackBufferSize_changed() const
 {
 	m_logModel->setScrollbackBufferSize(m_scrollbackLineEdit->text().toULongLong());
 }
@@ -167,7 +168,7 @@ void LogDock::on_scrollbackBufferSize_changed()
 //--------------------------------------------------------------------------------------------------
 //	on_showTimestampsCheckBox_toggled (private ) []
 //--------------------------------------------------------------------------------------------------
-void LogDock::on_showTimestampsCheckBox_toggled()
+void LogDock::on_showTimestampsCheckBox_toggled() const
 {
 	m_logView->setColumnHidden(LogModel::Column::Timestamp, !m_showTimestampsCheckBox->isChecked());
 }
@@ -175,7 +176,7 @@ void LogDock::on_showTimestampsCheckBox_toggled()
 //--------------------------------------------------------------------------------------------------
 //	on_showModulesCheckBox_toggled (private ) []
 //--------------------------------------------------------------------------------------------------
-void LogDock::on_showModulesCheckBox_toggled()
+void LogDock::on_showModulesCheckBox_toggled() const
 {
 	m_logView->setColumnHidden(LogModel::Column::Module, !m_showModulesCheckBox->isChecked());
 }
@@ -183,7 +184,7 @@ void LogDock::on_showModulesCheckBox_toggled()
 //--------------------------------------------------------------------------------------------------
 //	autoscroll (private ) []
 //--------------------------------------------------------------------------------------------------
-void LogDock::autoscroll()
+void LogDock::autoscroll() const
 {
 	if (m_autoscrollCheckBox->isChecked())
 		m_logView->scrollToBottom();
@@ -192,13 +193,13 @@ void LogDock::autoscroll()
 //--------------------------------------------------------------------------------------------------
 //	ensureVisible (private ) []
 //--------------------------------------------------------------------------------------------------
-void LogDock::stableScroll()
+void LogDock::stableScroll() const
 {
 	if (!m_autoscrollCheckBox->isChecked())
 	{
-		QScrollBar* verticalScrollBar = m_logView->verticalScrollBar();
-		bool        bScrolledToTop    = verticalScrollBar->value() == verticalScrollBar->minimum();
-		int         iRowIndex         = m_logView->indexAt(QPoint(8, 8)).row();
+		const QScrollBar* verticalScrollBar = m_logView->verticalScrollBar();
+		const bool        bScrolledToTop    = verticalScrollBar->value() == verticalScrollBar->minimum();
+		const int         iRowIndex         = m_logView->indexAt(QPoint(8, 8)).row();
 		int         iRowCount         = m_logView->model()->rowCount();
 
 		// move scroll bar to keep current items in view (if not scrolled to the top)
@@ -213,7 +214,7 @@ void LogDock::stableScroll()
 //--------------------------------------------------------------------------------------------------
 //	search (private ) []
 //--------------------------------------------------------------------------------------------------
-void LogDock::search(const QString& value)
+void LogDock::search(const QString& value) const
 {
 	if (m_regexButton->isChecked())
 		m_logProxyModel->setFilterRegularExpression(value);

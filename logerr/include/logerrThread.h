@@ -7,16 +7,13 @@
 
 #include <csignal>
 #include <functional>
+#include <logerrMacros.h>
 #include <logerrTypes.h>
+#include <mutex>
+#include <tuple>
 #include <thread>
-
-extern std::exception_ptr g_exceptionPtr;
-
-template<class T>
-std::decay_t<T> decay_copy(T&& v)
-{
-	return std::forward<T>(v);
-}
+#include <type_traits>
+#include <utility>
 
 namespace logerr
 {
@@ -25,7 +22,7 @@ namespace logerr
 	//----------------------------------------------------------------------------------------------------------------------
 	/// Thread class capable of catching exceptions
 	//----------------------------------------------------------------------------------------------------------------------
-	class thread : public std::thread
+	class thread : public std::jthread
 	{
 	public:
 		inline thread() noexcept;
@@ -40,7 +37,7 @@ namespace logerr
 	/// @brief Default Constructor
 	//----------------------------------------------------------------------------------------------------------------------
 	thread::thread() noexcept
-	    : std::thread()
+	    : std::jthread()
 	{
 	}
 
@@ -55,29 +52,27 @@ namespace logerr
 	//----------------------------------------------------------------------------------------------------------------------
 	template<class Function, class... Args>
 	thread::thread(Function&& f, Args&&... args)
-	    : std::thread(
-	            [](auto&& f, auto&&... args)
+	    : std::jthread(
+	            [function = std::decay_t<Function>(std::forward<Function>(f)),
+	             arguments = std::make_tuple(std::forward<Args>(args)...)](std::stop_token stop) mutable noexcept
 	            {
 		            try
 		            {
-			            std::invoke(decay_copy(std::forward<Function>(f)),
-			                        decay_copy(std::forward<Args>(args))...);
-		            }
-		            catch (const logerr::exception& e)
-		            {
-			            g_exceptionPtr = std::make_exception_ptr(e);
-		            }
-		            catch (const std::exception& e)
-		            {
-			            g_exceptionPtr = std::make_exception_ptr(e);
+			            std::apply(
+			                [&](auto&&... unpacked)
+			                {
+				                if constexpr (std::is_invocable_v<decltype(function)&, std::stop_token, decltype(unpacked)...>)
+					                std::invoke(function, stop, std::forward<decltype(unpacked)>(unpacked)...);
+				                else
+					                std::invoke(function, std::forward<decltype(unpacked)>(unpacked)...);
+			                },
+			                std::move(arguments));
 		            }
 		            catch (...)
 		            {
-			            g_exceptionPtr = std::current_exception();
+			            logerr::captureException(std::current_exception());
 		            }
-	            },
-	            std::forward<Function>(f),
-	            std::forward<Args>(args)...)
+	            })
 	{
 	}
 }    // namespace logerr

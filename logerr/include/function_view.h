@@ -30,8 +30,10 @@
 
 #pragma once
 
-#include <type_traits>
 #include <functional>
+#include <memory>
+#include <type_traits>
+#include <utility>
 
 template <typename...>
 using void_t = void;
@@ -41,14 +43,9 @@ struct is_callable : std::false_type
 {
 };
 
-template <class T>
-struct is_callable<T, void, void_t<std::result_of_t<T>>> : std::true_type
-{
-};
-
-template <class T, class R>
-struct is_callable<T, R, void_t<std::result_of_t<T>>>
-		: std::is_convertible<std::result_of_t<T>, R>
+template <class Function, class... Args, class R>
+struct is_callable<Function(Args...), R, std::enable_if_t<std::is_invocable_v<Function, Args...>>>
+	: std::conditional_t<std::is_void_v<R>, std::true_type, std::is_invocable_r<R, Function, Args...>>
 {
 };
 
@@ -78,32 +75,32 @@ template <typename TReturn, typename... TArgs>
 class function_view<TReturn(TArgs...)> final
 {
 private:
-	using signature_type = TReturn(void*, TArgs...);
-
-	void* _ptr;
-	TReturn (*_erased_fn)(void*, TArgs...);
+	void* m_object;
+	TReturn (*m_invoke)(void*, TArgs...);
 
 public:
-	template <typename T, typename = std::enable_if_t<
-			is_callable<T&(TArgs...)>{} &&
-			!std::is_same<std::decay_t<T>, function_view>{}>>
-	function_view(T&& x) noexcept : _ptr{(void*)std::addressof(x)}
+	template<typename T>
+		requires(std::is_lvalue_reference_v<T&&> &&
+		         std::is_invocable_r_v<TReturn, T&, TArgs...> &&
+		         !std::is_same_v<std::remove_cvref_t<T>, function_view>)
+	function_view(T&& callable) noexcept
+		: m_object(const_cast<void*>(static_cast<const void*>(std::addressof(callable))))
+		, m_invoke([](void* object, TArgs... args) -> TReturn
 	{
-		_erased_fn = [](void* ptr, TArgs... xs) -> TReturn {
-		  return (*reinterpret_cast<std::add_pointer_t<T>>(ptr))(
-				  std::forward<TArgs>(xs)...);
-		};
-	}
+		using callable_type = std::remove_reference_t<T>;
+		return std::invoke(*static_cast<callable_type*>(object), std::forward<TArgs>(args)...);
+	})
+	{}
 
-	decltype(auto) operator()(TArgs... xs) const
-	noexcept(noexcept(_erased_fn(_ptr, std::forward<TArgs>(xs)...)))
+	TReturn operator()(TArgs... args) const
+	noexcept(noexcept(m_invoke(m_object, std::forward<TArgs>(args)...)))
 	{
-		return _erased_fn(_ptr, std::forward<TArgs>(xs)...);
+		return m_invoke(m_object, std::forward<TArgs>(args)...);
 	}
 
 	bool operator<(const function_view& other) const noexcept
 	{
-		return _ptr < other._ptr;
+		return std::less<void*>{}(m_object, other.m_object);
 	}
 };
 

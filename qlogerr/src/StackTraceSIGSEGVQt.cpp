@@ -17,9 +17,9 @@ void stackTraceSIGSEGVQt(int)
 {
 	// Gather the details
 #ifdef _MSC_VER
-	StackTrace trace(7);    // determined empirically
+	const StackTrace trace(7);    // determined empirically
 #else
-	StackTrace trace(2);    // determined empirically
+	const StackTrace trace(2);    // determined empirically
 #endif
 
 	QString time = "\n\nTIME:\n\n";
@@ -27,11 +27,11 @@ void stackTraceSIGSEGVQt(int)
 	time += "    Crash Time   : " + QDateTime::currentDateTime().toString() + "\n";
 	time += "\n";
 
-	QString sDetails = QString("%1 Crashed! :'(").arg(QAPPINFO::name()) + time + QAPPINFO::systemDetails() + QString("STACK TRACE:\n\n") + trace.data();
+	const QString sDetails = QString("%1 Crashed! :'(").arg(QAPPINFO::name()) + time + QAPPINFO::systemDetails() + QString("STACK TRACE:\n\n") + trace.data();
 	LOGERR << sDetails.toLocal8Bit().constData() << std::endl;
 
 	// make sure the directory exists
-	QDir dir;
+	const QDir dir;
 	dir.mkpath(QAPPINFO::crashDumpDir());
 	LOGINFO << "Writing crash dump to: " << QAPPINFO::crashDumpDir().toStdString() << std::endl;
 
@@ -40,10 +40,11 @@ void stackTraceSIGSEGVQt(int)
 		crashdumpFileName.prepend(qApp->applicationName() + '-');
 
 	// write a dedicated crash dump file too for good measure
-	QFile crashDumpFile(QAPPINFO::crashDumpDir() + '/' + crashdumpFileName);
-	crashDumpFile.open(QIODevice::WriteOnly);
-	crashDumpFile.write(sDetails.toLocal8Bit());
-	crashDumpFile.close();
+	if (QFile crashDumpFile(QAPPINFO::crashDumpDir() + '/' + crashdumpFileName); crashDumpFile.open(QIODevice::WriteOnly))
+	{
+		crashDumpFile.write(sDetails.toLocal8Bit());
+		crashDumpFile.close();
+	}
 
 	LOGINFO << QAPPINFO::name().toLocal8Bit().constData() << " terminated due to a fatal error (application crash). Exiting with code 1..." << std::endl;
 

@@ -89,15 +89,15 @@ public:
 
 private slots:
 
-	void on_pbCopy_clicked();
+	void on_pbCopy_clicked() const;
 	void on_pbOK_clicked();
 	void on_pbDetails_clicked();
 
-	void on_pbApplicationInfoButton_clicked();
-	void on_pbVersionInfoButton_clicked();
-	void on_pbBuildInfoButton_clicked();
-	void on_pbHostInfoButton_clicked();
-	void on_pbStackTraceButton_clicked();
+	void on_pbApplicationInfoButton_clicked() const;
+	void on_pbVersionInfoButton_clicked() const;
+	void on_pbBuildInfoButton_clicked() const;
+	void on_pbHostInfoButton_clicked() const;
+	void on_pbStackTraceButton_clicked() const;
 
 private:
 	void setupUI();

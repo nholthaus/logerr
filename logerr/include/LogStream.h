@@ -59,7 +59,7 @@ class LogStream : public std::basic_streambuf<char>
 {
 public:
 	explicit LogStream(std::ostream& stream);
-	~LogStream() override;
+	~LogStream() noexcept override;
 
 	template<typename Function>
 	void registerLogFunction(std::string&& name, Function&& function)

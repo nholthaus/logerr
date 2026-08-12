@@ -18,10 +18,7 @@ Application::Application(int& argc, char* argv[])
 //--------------------------------------------------------------------------------------------------
 //	~Application (public ) []
 //--------------------------------------------------------------------------------------------------
-Application::~Application()
-{
-
-}
+Application::~Application() = default;
 
 //--------------------------------------------------------------------------------------------------
 //	notify () []
@@ -35,8 +32,7 @@ bool Application::notify(QObject* object, QEvent* event)
 		retVal = QApplication::notify(object, event);
 
 		// rethrow exceptions from threads
-		std::exception_ptr exceptionPtr = g_exceptionPtr;
-		g_exceptionPtr = nullptr;
+		const std::exception_ptr exceptionPtr = logerr::takeException();
 
 		if (exceptionPtr)
 			std::rethrow_exception(exceptionPtr);
@@ -50,21 +46,21 @@ bool Application::notify(QObject* object, QEvent* event)
 		dialog.exec();
 
 		if (e.fatal())
-			throw e;
+			throw;
 	}
 	catch (const std::exception& e)
 	{
 		ExceptionDialog dialog(e, true);
 		dialog.exec();
 
-		throw e;
+		throw;
 	}
 	catch (...)
 	{
-		const char* error = "Unhandled exception caught in Application::notify() catch-all block.";
+		auto error = "Unhandled exception caught in Application::notify() catch-all block.";
 		LOGERR << error << std::endl;
- 		ExceptionDialog dialog(error, true);
- 		dialog.exec();
+		ExceptionDialog dialog(error, true);
+		dialog.exec();
 
 		throw;
 	}
@@ -73,4 +69,3 @@ bool Application::notify(QObject* object, QEvent* event)
 }
 
 #include <moc_Application.cpp>
- 

@@ -6,7 +6,7 @@
 #include <StackTraceException.h>
 #ifdef BUILD_WITH_QT
 #include <QString>
-#include <../../qlogerr/include/qappinfo.h>
+#include <qappinfo.h>
 #else
 #include <appinfo.h>
 #endif
@@ -26,18 +26,16 @@ StackTraceException::StackTraceException(std::string errorMessage, std::string f
     , m_fatal(fatal)
 {
 	std::ostringstream whatStream;
-	whatStream << m_errorMessage << std::endl
+	whatStream << m_errorMessage << '\n'
 	           << "in `" << m_function << "` at `" << m_fileName << ":" << std::to_string(line) << "`"
-	           << std::endl
-	           << std::endl
+	           << "\n\n"
 #ifndef BUILD_WITH_QT
 	           << APPINFO::systemDetails()
 #else
 	           << QAPPINFO::systemDetails().toStdString()
 #endif
 	           << "STACK TRACE:"
-	           << std::endl
-	           << std::endl
+	           << "\n\n"
 	           << m_trace.data();
 	m_what = whatStream.str();
 

@@ -2,8 +2,11 @@
 //	INCLUDES
 //------------------------
 #include "StackTrace.h"
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
+#include <memory>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -29,40 +32,51 @@
 //--------------------------------------------------------------------------------------------------
 StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 {
+	// Both DbgHelp and the BFD-backed symbolizer maintain process-global state and are not safe to call concurrently.
+	static std::mutex stackTraceMutex;
+	const std::lock_guard stackTraceLock(stackTraceMutex);
 #ifdef WINDOWS
-	unsigned int    i;
-	void*           stack[MAX_FRAMES];
-	unsigned short  frames;
-	SYMBOL_INFO*    symbol;
-	HANDLE          process;
-	DWORD           dwDisplacement;
-	IMAGEHLP_LINE64 line;
+	const auto process = GetCurrentProcess();
+	static const bool symbolsInitialized = SymInitialize(process, nullptr, TRUE) != FALSE;
+	if (!symbolsInitialized)
+	{
+		m_value = "<unable to initialize Windows symbols>\n";
+		return;
+	}
 
-	process = GetCurrentProcess();
-
-	SymInitialize(process, nullptr, TRUE);
-
-	frames               = CaptureStackBackTrace(ignore, MAX_FRAMES, stack, nullptr);
-	symbol               = (SYMBOL_INFO*) calloc(sizeof(SYMBOL_INFO) + 256 * sizeof(char), 1);
-	symbol->MaxNameLen   = 255;
+	void* stack[MAX_FRAMES]{};
+	const unsigned short frames = CaptureStackBackTrace(ignore, MAX_FRAMES, stack, nullptr);
+	auto* rawSymbol = static_cast<SYMBOL_INFO*>(std::calloc(sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(char), 1));
+	if (rawSymbol == nullptr)
+	{
+		m_value = "<unable to allocate Windows symbol buffer>\n";
+		return;
+	}
+	const std::unique_ptr<SYMBOL_INFO, decltype(&std::free)> symbol(rawSymbol, &std::free);
+	symbol->MaxNameLen   = MAX_SYM_NAME;
 	symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
 
 	SymSetOptions(SYMOPT_LOAD_LINES);
-	line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
-
 	std::vector<std::string> symbolNames;
 	std::vector<ULONG64> addresses;
 	std::vector<std::string> fileNames;
+	symbolNames.reserve(frames);
+	addresses.reserve(frames);
+	fileNames.reserve(frames);
 
-	for (i = 1; i < frames; ++i)
+	for (unsigned short i = 1; i < frames; ++i)
 	{
-		SymFromAddr(process, (DWORD64)(stack[i]), nullptr, symbol);
-		if (SymGetLineFromAddr64(process, symbol->Address, &dwDisplacement, &line))
+		const auto address = reinterpret_cast<DWORD64>(stack[i]);
+		DWORD64 symbolDisplacement = 0;
+		const bool symbolResolved = SymFromAddr(process, address, &symbolDisplacement, symbol.get()) != FALSE;
+		IMAGEHLP_LINE64 line{};
+		line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+		DWORD lineDisplacement = 0;
+		if (SymGetLineFromAddr64(process, address, &lineDisplacement, &line) != FALSE && line.FileName != nullptr)
 		{
-			std::string filename;
-			std::stringstream ss;
-			ss << line.FileName;
-			while (getline(ss, filename, '\\')) {};
+			std::string filename(line.FileName);
+			if (const auto separator = filename.find_last_of("\\/"); separator != std::string::npos)
+				filename.erase(0, separator + 1);
 			fileNames.emplace_back(filename).append(":").append(std::to_string(line.LineNumber));
 		}
 		else
@@ -70,8 +84,8 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 			fileNames.emplace_back("??:0");
 		}
 
-		addresses.emplace_back(symbol->Address);
-		symbolNames.emplace_back(symbol->Name);
+		addresses.emplace_back(symbolResolved ? symbol->Address : address);
+		symbolNames.emplace_back(symbolResolved ? symbol->Name : "<no symbol found>");
 	}
 
 	// get max filename length
@@ -79,11 +93,13 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 	for (auto& filename : fileNames)
 	{
 		if (filename.length() > maxFilenameLength)
-			maxFilenameLength = filename.length() + 1;	}
+			maxFilenameLength = filename.length() + 1;
+	}
+	const auto filenameWidth = static_cast<std::streamsize>(maxFilenameLength);
 
 	std::ostringstream value;
 
-	for (int i = 0; i < frames - 1; ++i)
+	for (size_t i = 0; i < addresses.size(); ++i)
 	{
 		value << std::right << std::setw(5) << "["
 		      << std::left << std::dec << std::setw(frames / 10 + 1) << (i)
@@ -91,15 +107,13 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 		      << std::left << std::setw(0) << "0x"
 		      << std::right << std::hex << std::setw(16) << std::setfill('0') << addresses[i]
 		      << std::left << std::setw(0) << ": "
-		      << std::left << std::setw(maxFilenameLength) << std::setfill(' ') << fileNames[i]
+		      << std::left << std::setw(filenameWidth) << std::setfill(' ') << fileNames[i]
 		      << std::left << std::setw(0) << "| "
 		      << std::left << symbolNames[i]
-		      << std::endl;
+		      << '\n';
 	}
 
 	m_value = value.str();
-	free(symbol);
-
 #else
 	// storage array for stack trace address data
 	void* trace[MAX_FRAMES];
@@ -125,6 +139,7 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 		if (filename.length() > maxFilenameLength)
 			maxFilenameLength = filename.length() + 1;
 	}
+	const auto filenameWidth = static_cast<std::streamsize>(maxFilenameLength);
 
 	// set up a string stream to write to
 	std::ostringstream value{};
@@ -154,10 +169,10 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 			      << std::left << std::setw(0) << "0x"
 			      << std::right << std::hex << std::setw(16) << std::setfill('0') << (unsigned long long) trace[i]
 			      << std::left << std::setw(0) << ": "
-			      << std::left << std::setw(maxFilenameLength) << std::setfill(' ') << filename
+			      << std::left << std::setw(filenameWidth) << std::setfill(' ') << filename
 			      << std::left << std::setw(0) << "| "
 			      << std::left << ret
-			      << std::endl;
+			      << '\n';
 		}
 		else if (!functionName.empty())
 		{
@@ -169,10 +184,10 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 			      << std::left << std::setw(0) << "0x"
 			      << std::right << std::hex << std::setw(16) << std::setfill('0') << (unsigned long long) trace[i]
 			      << std::left << std::setw(0) << ": "
-			      << std::left << std::setw(maxFilenameLength) << std::setfill(' ') << filename
+			      << std::left << std::setw(filenameWidth) << std::setfill(' ') << filename
 			      << std::left << std::setw(0) << "| "
 			      << std::left << functionName
-			      << std::endl;
+			      << '\n';
 		}
 		else
 		{
@@ -183,13 +198,13 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/)
 			      << std::left << std::setw(0) << "0x"
 			      << std::right << std::hex << std::setw(16) << std::setfill('0') << (unsigned long long) trace[i]
 			      << std::left << std::setw(0) << ": "
-			      << std::left << std::setw(maxFilenameLength) << std::setfill(' ') << filename
+			      << std::left << std::setw(filenameWidth) << std::setfill(' ') << filename
 			      << std::left << std::setw(0) << "| "
 			      << std::left << "<no symbol found>"
-			      << std::endl;
+			      << '\n';
 		}
 
-		if (ret) free(ret);
+		if (ret) std::free(ret);
 	}
 
 	// store values

@@ -28,6 +28,7 @@
 #include <qappinfo.h>
 
 #include <QDateTime>
+#include <QDir>
 #include <QStandardPaths>
 #include <QString>
 #include <QSysInfo>
@@ -305,8 +306,8 @@ QString QAPPINFO::hostProductVersion() { return detail::hostProductVersion; }
 
 // Path Info
 QString QAPPINFO::appDataDir() { return QStandardPaths::standardLocations(QStandardPaths::AppDataLocation).first(); }
-QString QAPPINFO::logDir() { return appDataDir() + "logs/"; }
-QString QAPPINFO::crashDumpDir() { return appDataDir() + "crashdumps/"; }
+QString QAPPINFO::logDir() { return QDir(appDataDir()).filePath("logs/"); }
+QString QAPPINFO::crashDumpDir() { return QDir(appDataDir()).filePath("crashdumps/"); }
 QString QAPPINFO::documentsDir() { return QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation).first(); }
 QString QAPPINFO::tempDir() { return QStandardPaths::standardLocations(QStandardPaths::TempLocation).first(); }
 QString QAPPINFO::configDir() { return QStandardPaths::standardLocations(QStandardPaths::ConfigLocation).first(); }

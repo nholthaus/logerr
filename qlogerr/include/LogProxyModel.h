@@ -85,6 +85,7 @@ protected:
 	bool               lessThan(const QModelIndex& source_left, const QModelIndex& source_right) const override;
 
 private:
+	void setFilterFlag(bool& flag, bool value);
 
 	bool m_acceptsErrors = true;
 	bool m_acceptsWarnings = true;

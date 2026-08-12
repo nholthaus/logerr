@@ -4,10 +4,12 @@
 
 #include "timestampLite.h"
 
+#include <ctime>
+#include <cwctype>
+
 #if __has_include(<timezoneapi.h>)
 #define WIN32_LEAN_AND_MEAN    // Exclude rarely-used stuff from Windows headers
 #include <windows.h>
-#include <regex>
 #include <timezoneapi.h>
 #endif
 
@@ -31,47 +33,48 @@ TimestampLite::operator std::chrono::system_clock::time_point() const
 
 TimestampLite::operator std::string() const
 {
-
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable : 4996)    // disable: warning C4996: 'localtime': This function or variable may be unsafe. Consider using localtime_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
-#pragma warning(disable : 4244)    // disable: warning C4244: 'argument': conversion from 'wchar_t' to 'const _Elem', possible loss of data from fulltimezone function
+	char          buffer[128]{};
+	const auto    now_c = static_cast<std::time_t>(*this);
+	std::tm       localTime{};
+#ifdef _WIN32
+	if (localtime_s(&localTime, &now_c) != 0)
+#else
+	if (localtime_r(&now_c, &localTime) == nullptr)
 #endif
-	char buffer[128];
-	auto now_c = static_cast<std::time_t>(*this);
-	std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", std::localtime(&now_c));
+		return {};
+	if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &localTime) == 0)
+		return {};
 #if __has_include(<timezoneapi.h>)
 	// Windows + timezones is annoying
-	DYNAMIC_TIME_ZONE_INFORMATION timeZoneInformation;
-	GetDynamicTimeZoneInformation(&timeZoneInformation);
-	std::wstring wtimezone = timeZoneInformation.DaylightName;
-	std::string  fulltimezone(wtimezone.begin(), wtimezone.end());
-	std::regex   rx(R"(\b(\w).*?\b)");
-	std::smatch  match;
-	std::string  timezone;
-
-	// get timezone abbreviation
-	std::string::const_iterator searchStart(fulltimezone.cbegin());
-	while (regex_search(searchStart, fulltimezone.cend(), match, rx))
+	DYNAMIC_TIME_ZONE_INFORMATION timeZoneInformation{};
+	const auto timeZoneId = GetDynamicTimeZoneInformation(&timeZoneInformation);
+	const auto* timeZoneName = timeZoneId == TIME_ZONE_ID_DAYLIGHT ? timeZoneInformation.DaylightName
+	                                                             : timeZoneInformation.StandardName;
+	std::string timezone;
+	bool        atWordStart = true;
+	for (const auto* character = timeZoneName; *character != L'\0'; ++character)
 	{
-		timezone.append(match[1]);
-		searchStart = match.suffix().first;
+		if (std::iswspace(static_cast<std::wint_t>(*character)) != 0)
+			atWordStart = true;
+		else if (atWordStart)
+		{
+			if (*character <= 0x7f)
+				timezone.push_back(static_cast<char>(*character));
+			atWordStart = false;
+		}
 	}
 #else
-	char timezone[4];
-	std::strftime(timezone, sizeof(timezone), "%Z", std::localtime(&now_c));
+	char timezone[32]{};
+	std::strftime(timezone, sizeof(timezone), "%Z", &localTime);
 #endif
 
-	std::string seconds(buffer);
+	const std::string seconds(buffer);
 	std::string nanoseconds = std::to_string(std::chrono::duration_cast<std::chrono::nanoseconds>(m_now.time_since_epoch()).count() % 1000000000);
 
 	// have to add any leading zeros back in
 	nanoseconds = std::string(9 - nanoseconds.length(), '0') + nanoseconds;
 
 	return seconds + '.' + nanoseconds + ' ' + timezone;
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 }
 //----------------------------------------------------------------------------------------------------------------------
 //  operator<<

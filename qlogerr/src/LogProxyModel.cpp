@@ -25,8 +25,7 @@ bool LogProxyModel::acceptsErrors() const
 //--------------------------------------------------------------------------------------------------
 void LogProxyModel::setAcceptsErrors(bool val)
 {
-	m_acceptsErrors = val;
-	invalidateFilter();
+	setFilterFlag(m_acceptsErrors, val);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -42,8 +41,7 @@ bool LogProxyModel::acceptsWarnings() const
 //--------------------------------------------------------------------------------------------------
 void LogProxyModel::setAcceptsWarnings(bool val)
 {
-	m_acceptsWarnings = val;
-	invalidateFilter();
+	setFilterFlag(m_acceptsWarnings, val);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -59,8 +57,7 @@ bool LogProxyModel::acceptsInfo() const
 //--------------------------------------------------------------------------------------------------
 void LogProxyModel::setAcceptsInfo(bool val)
 {
-	m_acceptsInfo = val;
-	invalidateFilter();
+	setFilterFlag(m_acceptsInfo, val);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -76,8 +73,7 @@ bool LogProxyModel::acceptsDebug() const
 //--------------------------------------------------------------------------------------------------
 void LogProxyModel::setAcceptsDebug(bool val)
 {
-	m_acceptsDebug = val;
-	invalidateFilter();
+	setFilterFlag(m_acceptsDebug, val);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -93,8 +89,7 @@ bool LogProxyModel::acceptsTimestamps() const
 //--------------------------------------------------------------------------------------------------
 void LogProxyModel::setAcceptsTimestamps(bool val)
 {
-	m_acceptsTimestamps = val;
-	invalidateFilter();
+	setFilterFlag(m_acceptsTimestamps, val);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -110,8 +105,25 @@ bool LogProxyModel::acceptsModules() const
 //--------------------------------------------------------------------------------------------------
 void LogProxyModel::setAcceptsModules(bool val)
 {
-	m_acceptsModules = val;
+	setFilterFlag(m_acceptsModules, val);
+}
+
+//--------------------------------------------------------------------------------------------------
+//	setFilterFlag (private ) []
+//--------------------------------------------------------------------------------------------------
+void LogProxyModel::setFilterFlag(bool& flag, bool value)
+{
+	if (flag == value)
+		return;
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
+	beginFilterChange();
+	flag = value;
+	endFilterChange(QSortFilterProxyModel::Direction::Rows);
+#else
+	flag = value;
 	invalidateFilter();
+#endif
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -119,11 +131,8 @@ void LogProxyModel::setAcceptsModules(bool val)
 //--------------------------------------------------------------------------------------------------
 bool LogProxyModel::filterAcceptsRow(int source_row, const QModelIndex& source_parent) const
 {
-	QModelIndex source_type_index = sourceModel()->index(source_row, LogModel::Column::Type, source_parent);
-	QModelIndex source_msg_index = sourceModel()->index(source_row, LogModel::Column::Message, source_parent);
-
-	QString source_type = sourceModel()->data(source_type_index).toString();
-	QString source_message = sourceModel()->data(source_msg_index).toString();
+	const QModelIndex source_type_index = sourceModel()->index(source_row, LogModel::Column::Type, source_parent);
+	const QString source_type = sourceModel()->data(source_type_index).toString();
 
 	if (source_type == "ERROR" && !m_acceptsErrors)
 		return false;
@@ -142,7 +151,5 @@ bool LogProxyModel::filterAcceptsRow(int source_row, const QModelIndex& source_p
 //----------------------------------------------------------------------------------------------------------------------
 bool LogProxyModel::lessThan(const QModelIndex& source_left, const QModelIndex& source_right) const
 {
-	QStringList leftData = sourceModel()->data(source_left).toStringList();
-	QStringList rightData = sourceModel()->data(source_right).toStringList();
-	return leftData.at(0) < rightData.at(0);
+	return sourceModel()->data(source_left).toString() < sourceModel()->data(source_right).toString();
 }

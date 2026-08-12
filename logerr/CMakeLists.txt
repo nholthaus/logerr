@@ -1,120 +1,79 @@
-#-------------------------------------------------------------------------------
-#	CMAKE SETTINGS
-#-------------------------------------------------------------------------------
+set(logerr_headers
+    include/appinfo.h
+    include/concurrent_queue.h
+    include/function_view.h
+    include/logerr
+    include/logerrConsoleApplication.h
+    include/logerrMacros.h
+    include/LogFileWriter.h
+    include/LogStream.h
+    include/sigtermHandler.h
+    include/StackTrace.h
+    include/StackTraceException.h
+    include/StackTraceSIGSEGV.h
+    include/timestampLite.h)
 
-cmake_minimum_required(VERSION 3.16)
+set(logerr_sources
+    src/LogFileWriter.cpp
+    src/LogStream.cpp
+    src/sigtermHandler.cpp
+    src/StackTrace.cpp
+    src/StackTraceException.cpp
+    src/StackTraceSIGSEGV.cpp
+    src/timestampLite.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/appinfo.cpp")
 
-#-------------------------------------------------------------------------------
-#	PROJECT SETTINGS
-#-------------------------------------------------------------------------------
-
-PROJECT(logerr)
-
-#-------------------------------------------------------------------------------
-#	SOURCE CODE
-#-------------------------------------------------------------------------------
-
-# .h files
-list(APPEND HEADER_FILES
-        include/appinfo.h
-        include/concurrent_queue.h
-        include/logerr
-        include/logerrMacros.h
-        include/LogFileWriter.h
-        include/logerrConsoleApplication.h
-        include/LogStream.h
-        include/sigtermHandler.h
-        include/StackTrace.h
-        include/StackTraceException.h
-        include/StackTraceSIGSEGV.h
-        include/timestampLite.h
-        )
-
-# .cpp files
-list(APPEND SOURCE_FILES
-        src/LogFileWriter.cpp
-        src/LogStream.cpp
-        src/sigtermHandler.cpp
-        src/StackTrace.cpp
-        src/StackTraceException.cpp
-        src/StackTraceSIGSEGV.cpp
-        src/timestampLite.cpp
-        ${CMAKE_CURRENT_BINARY_DIR}/appinfo.cpp
-        )
-
-list(APPEND SOURCE_FILES ${HEADER_FILES})
-
-if (NOT WIN32)
-    list(APPEND SOURCE_FILES src/backtraceSymbols.cpp)
-endif ()
-
-#-------------------------------------------------------------------------------
-#	BFD SETTINGS
-#-------------------------------------------------------------------------------
-
-if (NOT WIN32)
-    find_package(Bfd)
-    if (NOT Bfd_FOUND)
-        message(FATAL_ERROR "Bfd not found. Install binutils using your systems package manager (on ubuntu: `sudo apt install binutils-dev libiberty-dev`)")
-    endif ()
+if(NOT WIN32)
+    find_package(Bfd REQUIRED)
+    list(APPEND logerr_sources src/backtraceSymbols.cpp)
 
     include(CheckCXXSymbolExists)
-    check_cxx_symbol_exists(bfd_section_flags "bfd.h" HAS_BFD_SECTION_FLAGS)
-    if(NOT HAS_BFD_SECTION_FLAGS)
-        add_compile_definitions(USE_OLD_BFD)
-    endif()
-else()
-    add_compile_definitions(WINDOWS)
-    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
-endif ()
-
-#-------------------------------------------------------------------------------
-#	CONFIGURATION
-#-------------------------------------------------------------------------------
+    set(CMAKE_REQUIRED_INCLUDES "${LIBBFD_INCLUDE_DIRS}")
+    check_cxx_symbol_exists(bfd_section_flags "bfd.h" LOGERR_HAS_BFD_SECTION_FLAGS)
+    unset(CMAKE_REQUIRED_INCLUDES)
+endif()
 
 configure_file(appinfo.cpp.in appinfo.cpp @ONLY NEWLINE_STYLE UNIX)
-add_compile_definitions(AUTO_DOWNLOAD=1)
 
-#-------------------------------------------------------------------------------
-#	ADDITIONAL LIBRARIES
-#-------------------------------------------------------------------------------
-
-if (WIN32)
-    list(APPEND LIBRARIES wsock32 ws2_32)
-else (WIN32)
-    list(APPEND LIBRARIES bfd)
-endif (WIN32)
-
-if (BUILD_WITH_QT)
+if(BUILD_WITH_QT)
     configure_file(../qlogerr/qappinfo.cpp.in qappinfo.cpp @ONLY NEWLINE_STYLE UNIX)
-    list(APPEND SOURCE_FILES ${CMAKE_CURRENT_BINARY_DIR}/qappinfo.cpp)
-    list(APPEND LIBRARIES Qt::Core)
-endif (BUILD_WITH_QT)
+    list(APPEND logerr_sources "${CMAKE_CURRENT_BINARY_DIR}/qappinfo.cpp")
+endif()
 
-list(APPEND LIBRARIES
-        gitinfo
-        Threads::Threads)
+add_library(logerr STATIC ${logerr_sources} ${logerr_headers})
+add_library(logerr::logerr ALIAS logerr)
 
-#-------------------------------------------------------------------------------
-#	GENERATE EXECUTABLE
-#-------------------------------------------------------------------------------
+target_compile_features(logerr PUBLIC cxx_std_23)
+target_include_directories(logerr
+    PUBLIC
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    PRIVATE
+        "${CMAKE_CURRENT_BINARY_DIR}")
+target_link_libraries(logerr PRIVATE gitinfo Threads::Threads)
 
-# include dirs
-set(INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_BINARY_DIR};${CMAKE_CURRENT_SOURCE_DIR}/../qlogerr/include")
-include_directories(${INCLUDE_DIRS})
+if(WIN32)
+    target_compile_definitions(logerr PRIVATE WINDOWS _CRT_SECURE_NO_WARNINGS)
+    target_link_libraries(logerr PRIVATE wsock32 ws2_32)
+else()
+    target_link_libraries(logerr PRIVATE Bfd::Bfd)
+    if(NOT LOGERR_HAS_BFD_SECTION_FLAGS)
+        target_compile_definitions(logerr PRIVATE USE_OLD_BFD)
+    endif()
+endif()
 
-# Generate the executable
-add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES})
+if(BUILD_WITH_QT)
+    target_compile_definitions(logerr PRIVATE BUILD_WITH_QT)
+    target_include_directories(logerr PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../qlogerr/include")
+    target_link_libraries(logerr PRIVATE Qt6::Core)
+endif()
 
-# link libraries
-target_link_libraries(${PROJECT_NAME} PUBLIC ${LIBRARIES})
+# Symbol generation must reach the final executable: applying it only while archiving this static library cannot make
+# consumer frames symbolizable. No warning policy, Qt search setting, or repository implementation switch is public.
+if(MSVC)
+    target_compile_options(logerr PUBLIC /Zi)
+    target_link_options(logerr PUBLIC /DEBUG)
+else()
+    target_compile_options(logerr PUBLIC -g)
+endif()
 
-# include directories
-set_target_properties(${PROJECT_NAME} PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${INCLUDE_DIRS})
-
-# Target properties required to generate a stack trace
-if (WIN32)
-    set_target_properties(${PROJECT_NAME} PROPERTIES INTERFACE_COMPILE_OPTIONS "/Zi" INTERFACE_LINK_OPTIONS "/DEBUG;/OPT:REF;/OPT:ICF")
-else ()
-    set_target_properties(${PROJECT_NAME} PROPERTIES INTERFACE_COMPILE_OPTIONS -g)
-endif ()
+logerr_enable_project_warnings(logerr)

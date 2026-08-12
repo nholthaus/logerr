@@ -45,13 +45,16 @@
 #include <LogFileWriter.h>
 #include <appinfo.h>
 #include <date.h>
+#include <logerrMacros.h>
 #include <timestampLite.h>
 
 // std
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <iostream>
+#include <memory>
 
 //----------------------------
 //  USING NAMESPACE
@@ -66,20 +69,24 @@ using namespace std::chrono_literals;
 /// @param logFilePath path to the log file for this application
 LogFileWriter::LogFileWriter(std::string logFilePath)
 {
-	bool                    finishedConstructing = false;
-	std::mutex              constructorMutex;
-	std::condition_variable finishedConstructingCV;
+	auto ready = std::make_shared<std::promise<void>>();
+	auto readyFuture = ready->get_future();
 
-	m_thread = std::thread([&, this]
+	m_thread = std::jthread([this, logFilePath = std::move(logFilePath), ready](std::stop_token stop) mutable noexcept
 	                       {
+		                       bool readyReported = false;
+		                       try
+		                       {
 		                       if (logFilePath.empty())
 		                       {
 			                       auto currentDateTime = date::format("%FT%TZ", date::floor<std::chrono::milliseconds>(std::chrono::system_clock::now()));
-			                       currentDateTime.erase(std::remove(currentDateTime.begin(), currentDateTime.end(), ':'), currentDateTime.end());
+			                       std::erase(currentDateTime, ':');
 
 			                       std::string name = APPINFO::gitRepo();
 			                       if (name != APPINFO::name())
+			                       {
 				                       name.append("_").append(APPINFO::name());
+			                       }
 
 			                       std::ostringstream ss;
 			                       ss << APPINFO::logDir() << name << "_" << currentDateTime << ".log.txt";
@@ -95,56 +102,86 @@ LogFileWriter::LogFileWriter(std::string logFilePath)
 		                       try
 		                       {
 			                       if (!std::filesystem::exists(APPINFO::logDir()))
+			                       {
 				                       std::filesystem::create_directories(APPINFO::logDir());
+			                       }
 		                       }
 		                       catch(const std::filesystem::filesystem_error& e)
 		                       {
 			                       std::cerr << '[' << TimestampLite() << "] [ERROR]    Failed to `mkpath` to the log directory: "
-			                                 << APPINFO::logDir() << ". Details: " << e.what() << std::endl;
+			                                 << APPINFO::logDir() << ". Details: " << e.what() << '\n';
 			                       error = true;
 		                       }
 
 		                       // open an unbuffered log file
 		                       std::ofstream logFile;
-		                       logFile.rdbuf()->pubsetbuf(0, 0);
+		                       logFile.rdbuf()->pubsetbuf(nullptr, 0);
 		                       logFile.open(logFilePath, std::ios::out | std::ios::app);
 
 		                       if (!logFile.is_open())
 		                       {
 			                       std::cerr << '[' << TimestampLite() << "] [ERROR]    Failed to open the log file for writing: "
-			                                 << logFilePath << std::endl;
+			                                 << logFilePath << '\n';
 			                       error = true;
 		                       }
 
-		                       // at this point the thread is in steady-state
-		                       std::unique_lock<std::mutex> lock(constructorMutex);
-		                       finishedConstructing = true;
-		                       finishedConstructingCV.notify_one();
-		                       lock.unlock();
+		                       // At this point the worker is initialized. Report readiness before entering the blocking pop.
+		                       ready->set_value();
+		                       readyReported = true;
 
 		                       // don't try to log to a file we couldn't open...
-		                       if (error) return;
+		                       if (error)
+		                       {
+			                       return;
+		                       }
 
 		                       // log lines as we receive them into the queue
 		                       std::string logEntry;
-		                       while (!m_joinAll)
+		                       while (m_logQueue.wait_pop(logEntry, stop))
 		                       {
-			                       while (m_logQueue.try_pop_for(logEntry, 100ms))
-			                       {
-				                       logFile << logEntry;
-				                       logFile.flush();
-			                       }
+			                       logFile << logEntry;
+			                       logFile.flush();
 		                       }
 
 		                       // close the log on exit
 		                       logFile.close();
+		                       }
+		                       catch (...)
+		                       {
+			                       const auto failure = std::current_exception();
+			                       if (!readyReported)
+			                       {
+				                       try
+				                       {
+					                       ready->set_exception(failure);
+				                       }
+				                       catch (const std::exception& promiseError)
+				                       {
+					                       std::cerr << "LogFileWriter could not report its startup failure: "
+					                                 << promiseError.what() << '\n';
+				                       }
+			                       }
+			                       else
+			                       {
+				                       logerr::captureException(failure);
+			                       }
+			                       try
+			                       {
+				                       std::rethrow_exception(failure);
+			                       }
+			                       catch (const std::exception& error)
+			                       {
+				                       std::cerr << "LogFileWriter worker failed: " << error.what() << '\n';
+			                       }
+			                       catch (...)
+			                       {
+				                       std::cerr << "LogFileWriter worker failed with a non-standard exception\n";
+			                       }
+		                       }
 	                       });
 
-	// wait until the thread hits steady-state to leave the constructor. This will lead to more
-	// intuitive behavior (basically the class will behave the same way as if it wasn't threaded).
-	std::unique_lock<std::mutex> lock(constructorMutex);
-	finishedConstructingCV.wait(lock, [&finishedConstructing]
-	                            { return finishedConstructing; });
+	// Preserve the synchronous construction contract and propagate initialization failures on the constructing thread.
+	readyFuture.get();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -152,11 +189,7 @@ LogFileWriter::LogFileWriter(std::string logFilePath)
 //--------------------------------------------------------------------------------------------------
 /// @brief Destructor
 LogFileWriter::~LogFileWriter()
-{
-	m_joinAll.store(true);
-	if (m_thread.joinable())
-		m_thread.join();
-}
+= default;
 
 //--------------------------------------------------------------------------------------------------
 //	write (public ) []

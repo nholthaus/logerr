@@ -1,81 +1,28 @@
-#-------------------------------------------------------------------------------
-#	CMAKE SETTINGS
-#-------------------------------------------------------------------------------
+qt_add_executable(logerrExample
+    main.cpp
+    mainWindow.cpp
+    mainWindow.h)
 
-cmake_minimum_required(VERSION 3.16)
-set(QT_MINIMUM_VERSION 5.15.0)
+target_link_libraries(logerrExample PRIVATE logerr::qlogerr)
+target_include_directories(logerrExample PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+logerr_enable_project_warnings(logerrExample)
+set_target_properties(logerrExample PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-#-------------------------------------------------------------------------------
-#	PROJECT SETTINGS
-#-------------------------------------------------------------------------------
+install(TARGETS logerrExample RUNTIME DESTINATION bin)
+qt_generate_deploy_app_script(
+    TARGET logerrExample
+    OUTPUT_SCRIPT logerr_example_deploy_script
+    NO_UNSUPPORTED_PLATFORM_ERROR)
+install(SCRIPT "${logerr_example_deploy_script}")
 
-PROJECT(logerrExample)
-
-#-------------------------------------------------------------------------------
-#	SOURCE CODE
-#-------------------------------------------------------------------------------
-
-# .cpp files
-list(APPEND SOURCE_FILES
-        main.cpp
-        mainWindow.h
-        mainWindow.cpp
-        )
-
-#-------------------------------------------------------------------------------
-#	ADDITIONAL LIBRARIES
-#-------------------------------------------------------------------------------
-
-list(APPEND LIBRARIES
-        qlogerr
-        Qt::Core
-        Qt::Gui
-        Qt::Widgets
-        Threads::Threads
-        )
-
-# Remove duplicate library dependencies. 
-list(REMOVE_DUPLICATES LIBRARIES)
-
-#-------------------------------------------------------------------------------
-#	GENERATE EXECUTABLE
-#-------------------------------------------------------------------------------
-
-# Set additional include directories
-include_directories(${INCLUDE_DIRS})
-
-# Generate the executable
-add_executable(${PROJECT_NAME} ${GUI_TYPE} ${SOURCE_FILES} ${RESOURCES})
-
-# link libraries
-target_link_libraries(${PROJECT_NAME} ${LIBRARIES})
-
-# Use the automatically determined RPATH values
-set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
-
-INSTALL(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
-INCLUDE(InstallRequiredSystemLibraries)
-
-#-------------------------------------------------------------------------------
-#	DEPLOY QT DLLS
-#-------------------------------------------------------------------------------
-
-if (WIN32)
+if(WIN32)
     include(windeployqt)
-    windeployqt(${PROJECT_NAME} bin)
-endif (WIN32)
-
-#-------------------------------------------------------------------------------
-#	INSTALLER
-#-------------------------------------------------------------------------------
+    logerr_windeployqt(logerrExample)
+endif()
 
 set(CPACK_GENERATOR NSIS)
 set(CPACK_PACKAGE_NAME "logerrExample")
 set(CPACK_PACKAGE_VENDOR "Menari Softworks")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Example Logerr UI")
-set(CPACK_PACKAGE_VERSION "0.0.0")
-set(CPACK_PACKAGE_VERSION_MAJOR "1")
-set(CPACK_PACKAGE_VERSION_MINOR "0")
-set(CPACK_PACKAGE_VERSION_PATCH "0")
-
-INCLUDE(CPack)
+set(CPACK_PACKAGE_VERSION "1.0.0")
+include(CPack)

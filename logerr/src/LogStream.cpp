@@ -20,13 +20,27 @@ LogStream::LogStream(std::ostream& stream)
 //--------------------------------------------------------------------------------------------------
 //	~LogStream () []
 //--------------------------------------------------------------------------------------------------
-LogStream::~LogStream()
+LogStream::~LogStream() noexcept
 {
 	// output anything that is left
-	if (!m_string.empty())
-		log();
+	try
+	{
+		if (!m_string.empty())
+			log();
+	}
+	catch (...)    // NOLINT(bugprone-empty-catch)
+	{
+		// A stream buffer destructor cannot propagate failures from user callbacks.
+	}
 
-	m_stream.rdbuf(m_old_buf);
+	try
+	{
+		m_stream.rdbuf(m_old_buf);
+	}
+	catch (...)    // NOLINT(bugprone-empty-catch)
+	{
+		// std::basic_ios::rdbuf() can throw when the stream has an exception mask.
+	}
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -34,7 +48,12 @@ LogStream::~LogStream()
 //--------------------------------------------------------------------------------------------------
 std::basic_streambuf<char>::int_type LogStream::overflow(int_type v)
 {
-	m_string += static_cast<char>(v);
+	if (traits_type::eq_int_type(v, traits_type::eof()))
+	{
+		return traits_type::not_eof(v);
+	}
+
+	m_string += traits_type::to_char_type(v);
 
 	if (v == '\n')
 		log();
@@ -47,9 +66,14 @@ std::basic_streambuf<char>::int_type LogStream::overflow(int_type v)
 //--------------------------------------------------------------------------------------------------
 std::streamsize LogStream::xsputn(const char* p, std::streamsize n)
 {
+	if (n <= 0)
+	{
+		return 0;
+	}
+
 	m_string.append(p, p + n);
 
-	if (*(--m_string.end()) == '\n')
+	if (m_string.back() == '\n')
 		log();
 
 	return n;
@@ -60,10 +84,18 @@ std::streamsize LogStream::xsputn(const char* p, std::streamsize n)
 //----------------------------------------------------------------------------------------------------------------------
 void LogStream::log()
 {
-	std::unique_lock<std::mutex> lock(m_callbackMutex);
-	for(auto& [name, callback] : m_callbacks)
+	const std::lock_guard lock(m_callbackMutex);
+	try
 	{
-		callback(m_string);
+		for(auto& [name, callback] : m_callbacks)
+		{
+			callback(m_string);
+		}
+	}
+	catch (...)
+	{
+		m_string.clear();
+		throw;
 	}
 	m_string.clear();
 }
@@ -73,7 +105,7 @@ void LogStream::log()
 //----------------------------------------------------------------------------------------------------------------------
 void LogStream::unregisterLogFunction(const std::string& name /*= ""*/)
 {
-	std::unique_lock<std::mutex> lock(m_callbackMutex);
+	const std::lock_guard lock(m_callbackMutex);
 	if(name.empty())
 		m_callbacks.clear();
 	else

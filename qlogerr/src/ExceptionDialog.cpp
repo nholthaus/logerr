@@ -8,11 +8,9 @@
 
 #include <QApplication>
 #include <QClipboard>
-#include <QDebug>
 #include <QFontDatabase>
 #include <QFontMetrics>
 #include <QGroupBox>
-#include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QScrollBar>
@@ -23,17 +21,17 @@
 //--------------------------------------------------------------------------------------------------
 //	CONSTRUCTOR
 //--------------------------------------------------------------------------------------------------
-ExceptionDialog::ExceptionDialog(const StackTraceException& exception, bool fatal, QWidget* parent /*= nullptr*/)
+ExceptionDialog::ExceptionDialog(const StackTraceException& msg, const bool fatal, QWidget* parent /*= nullptr*/)
     : QDialog(parent)
     , m_fatal(fatal)
-    , m_errorMessage(QString::fromStdString(exception.errorMessage()))
-    , m_errorDetails(QString::fromStdString(exception.errorDetails()))
-    , m_filename(QString::fromStdString(exception.filename()))
-    , m_function(QString::fromStdString(exception.function()))
-    , m_line(QString::number(exception.line()))
+    , m_errorMessage(QString::fromStdString(msg.errorMessage()))
+    , m_errorDetails(QString::fromStdString(msg.errorDetails()))
+    , m_filename(QString::fromStdString(msg.filename()))
+    , m_function(QString::fromStdString(msg.function()))
+    , m_line(QString::number(msg.line()))
     , m_errorIcon(new QLabel(this))
     , m_errorMessageLabel(new QLabel(m_errorMessage.prepend("ERROR: "), this))
-    , m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function).arg(m_filename).arg(m_line), this))
+    , m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function, m_filename, m_line), this))
     , m_detailsGroupBox(new QGroupBox())
     , m_detailsTextBrowser(new CorrectlySizedTextBrowser(this))
     , m_applicationInfoButton(new QPushButton("App Info"))
@@ -66,7 +64,7 @@ ExceptionDialog::ExceptionDialog(const std::exception& exception, bool fatal /*=
     , m_line("")
     , m_errorIcon(new QLabel(this))
     , m_errorMessageLabel(new QLabel(m_errorMessage.prepend("ERROR: "), this))
-    , m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function).arg(m_filename).arg(m_line), this))
+    , m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function, m_filename, m_line), this))
     , m_detailsGroupBox(new QGroupBox())
     , m_detailsTextBrowser(new CorrectlySizedTextBrowser(this))
     , m_applicationInfoButton(new QPushButton("App Info"))
@@ -106,7 +104,7 @@ ExceptionDialog::ExceptionDialog(const char* msg, bool fatal /*= false*/, QWidge
     , m_line("")
     , m_errorIcon(new QLabel(this))
     , m_errorMessageLabel(new QLabel(m_errorMessage.prepend("ERROR: "), this))
-    , m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function).arg(m_filename).arg(m_line), this))
+    , m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function, m_filename, m_line), this))
     , m_detailsGroupBox(new QGroupBox())
     , m_detailsTextBrowser(new CorrectlySizedTextBrowser(this))
     , m_applicationInfoButton(new QPushButton("App Info"))
@@ -146,7 +144,7 @@ ExceptionDialog::ExceptionDialog(QString msg, QString details, bool fatal /*= fa
     , m_line("")
     , m_errorIcon(new QLabel(this))
     , m_errorMessageLabel(new QLabel(m_errorMessage.prepend("FATAL ERROR: "), this))
-    , m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function).arg(m_filename).arg(m_line), this))
+    , m_errorLocationLabel(new QLabel(QString("in: %1 at: %2:%3").arg(m_function, m_filename, m_line), this))
     , m_detailsGroupBox(new QGroupBox())
     , m_detailsTextBrowser(new CorrectlySizedTextBrowser(this))
     , m_applicationInfoButton(new QPushButton("App Info"))
@@ -218,9 +216,10 @@ void ExceptionDialog::setupUI()
 	m_detailsTextBrowser->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
 	m_detailsTextBrowser->verticalScrollBar()->setRange(0, m_detailsTextBrowser->document()->lineCount());
 	m_detailsTextBrowser->verticalScrollBar()->setSingleStep(5);
-	m_detailsTextBrowser->setFixedHeight(QFontMetrics(m_detailsTextBrowser->font()).lineSpacing() * 12
-	                                     + m_detailsTextBrowser->document()->documentMargin()
-	                                     + m_detailsTextBrowser->frameWidth() * 2);
+	const auto detailsHeight = qRound(QFontMetrics(m_detailsTextBrowser->font()).lineSpacing() * 12
+	                                + m_detailsTextBrowser->document()->documentMargin()
+	                                + m_detailsTextBrowser->frameWidth() * 2);
+	m_detailsTextBrowser->setFixedHeight(detailsHeight);
 
 	this->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
@@ -238,14 +237,12 @@ void ExceptionDialog::setupUI()
 //--------------------------------------------------------------------------------------------------
 //	DESTRUCTOR
 //--------------------------------------------------------------------------------------------------
-ExceptionDialog::~ExceptionDialog()
-{
-}
+ExceptionDialog::~ExceptionDialog() = default;
 
 //--------------------------------------------------------------------------------------------------
 //	on_pbCopy_clicked (public ) []
 //--------------------------------------------------------------------------------------------------
-void ExceptionDialog::on_pbCopy_clicked()
+void ExceptionDialog::on_pbCopy_clicked() const
 {
 	QApplication::clipboard()->setText(m_errorDetails);
 }
@@ -274,9 +271,9 @@ void ExceptionDialog::on_pbDetails_clicked()
 //--------------------------------------------------------------------------------------------------
 //	on_pbApplicationInfoButton_clicked () []
 //--------------------------------------------------------------------------------------------------
-void ExceptionDialog::on_pbApplicationInfoButton_clicked()
+void ExceptionDialog::on_pbApplicationInfoButton_clicked() const
 {
-	auto cur = m_detailsTextBrowser->document()->find("APPLICATION INFO:");
+	const auto cur = m_detailsTextBrowser->document()->find("APPLICATION INFO:");
 	m_detailsTextBrowser->moveCursor(QTextCursor::End);
 	m_detailsTextBrowser->setTextCursor(cur);
 }
@@ -284,9 +281,9 @@ void ExceptionDialog::on_pbApplicationInfoButton_clicked()
 //--------------------------------------------------------------------------------------------------
 //	on_pbVersionInfoButton_clicked () []
 //--------------------------------------------------------------------------------------------------
-void ExceptionDialog::on_pbVersionInfoButton_clicked()
+void ExceptionDialog::on_pbVersionInfoButton_clicked() const
 {
-	auto cur = m_detailsTextBrowser->document()->find("VERSION INFO:");
+	const auto cur = m_detailsTextBrowser->document()->find("VERSION INFO:");
 	m_detailsTextBrowser->moveCursor(QTextCursor::End);
 	m_detailsTextBrowser->setTextCursor(cur);
 }
@@ -294,9 +291,9 @@ void ExceptionDialog::on_pbVersionInfoButton_clicked()
 //--------------------------------------------------------------------------------------------------
 //	on_pbBuildInfoButton_clicked () []
 //--------------------------------------------------------------------------------------------------
-void ExceptionDialog::on_pbBuildInfoButton_clicked()
+void ExceptionDialog::on_pbBuildInfoButton_clicked() const
 {
-	auto cur = m_detailsTextBrowser->document()->find("BUILD INFO:");
+	const auto cur = m_detailsTextBrowser->document()->find("BUILD INFO:");
 	m_detailsTextBrowser->moveCursor(QTextCursor::End);
 	m_detailsTextBrowser->setTextCursor(cur);
 }
@@ -304,9 +301,9 @@ void ExceptionDialog::on_pbBuildInfoButton_clicked()
 //--------------------------------------------------------------------------------------------------
 //	on_pbHostInfoButton_clicked () []
 //--------------------------------------------------------------------------------------------------
-void ExceptionDialog::on_pbHostInfoButton_clicked()
+void ExceptionDialog::on_pbHostInfoButton_clicked() const
 {
-	auto cur = m_detailsTextBrowser->document()->find("HOST INFO:");
+	const auto cur = m_detailsTextBrowser->document()->find("HOST INFO:");
 	m_detailsTextBrowser->moveCursor(QTextCursor::End);
 	m_detailsTextBrowser->setTextCursor(cur);
 }
@@ -314,9 +311,9 @@ void ExceptionDialog::on_pbHostInfoButton_clicked()
 //--------------------------------------------------------------------------------------------------
 //	on_pbStackTraceButton_clicked () []
 //--------------------------------------------------------------------------------------------------
-void ExceptionDialog::on_pbStackTraceButton_clicked()
+void ExceptionDialog::on_pbStackTraceButton_clicked() const
 {
-	auto cur = m_detailsTextBrowser->document()->find("STACK TRACE:");
+	const auto cur = m_detailsTextBrowser->document()->find("STACK TRACE:");
 	m_detailsTextBrowser->moveCursor(QTextCursor::End);
 	m_detailsTextBrowser->setTextCursor(cur);
 }
@@ -335,10 +332,10 @@ CorrectlySizedTextBrowser::CorrectlySizedTextBrowser(QWidget* parent /*= nullptr
 //--------------------------------------------------------------------------------------------------
 QSize CorrectlySizedTextBrowser::sizeHint() const
 {
-	auto font     = this->currentFont();
-	auto textSize = QFontMetrics(font).size(0, this->document()->toPlainText());
-	int  newWidth = textSize.width() + 30;
-	return QSize(newWidth, QTextBrowser::sizeHint().height());
+	const auto font     = this->currentFont();
+	const auto textSize = QFontMetrics(font).size(0, this->document()->toPlainText());
+	const int  newWidth = textSize.width() + 30;
+	return {newWidth, QTextBrowser::sizeHint().height()};
 }
 
 //--------------------------------------------------------------------------------------------------

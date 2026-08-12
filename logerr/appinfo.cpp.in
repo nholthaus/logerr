@@ -43,6 +43,7 @@ constexpr bool IS_LINUX = @IS_LINUX@;
 #include <timestampLite.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <fstream>
 #include <filesystem>
@@ -54,7 +55,7 @@ constexpr bool IS_LINUX = @IS_LINUX@;
 #if __has_include(<sys/auxv.h>)
 #include <sys/auxv.h>
 #else
-#define getauxval(...) std::string("").data()
+#define getauxval(...) 0ULL
 #endif
 #if __has_include(<winsock.h>)
 #include <winsock.h>
@@ -62,7 +63,7 @@ constexpr bool IS_LINUX = @IS_LINUX@;
 #if __has_include(<libloaderapi.h>)
 #include <libloaderapi.h>
 #else
-#define GetModuleFileNameA(...) // don't have it
+#define GetModuleFileNameA(...) 0UL
 #endif
 #endif
 
@@ -74,6 +75,18 @@ using namespace std;
 
 namespace APPINFO::detail
 {
+	string environmentVariable(const char* name)
+	{
+		if (const char* value = std::getenv(name))
+			return value;
+		return {};
+	}
+
+	string normalizedPath(string path)
+	{
+		std::replace(path.begin(), path.end(), '\\', '/');
+		return path;
+	}
 
 	// Application Info
 	string       name("unset_name");
@@ -239,16 +252,18 @@ string APPINFO::name()
 {
 	if constexpr (IS_LINUX || IS_MAC)
 	{
-		return std::filesystem::path((char *)getauxval(AT_EXECFN)).filename().replace_extension("").string();
+		const auto executable = reinterpret_cast<const char*>(getauxval(AT_EXECFN));
+		if (executable)
+			return std::filesystem::path(executable).filename().replace_extension("").string();
 	}
 	if constexpr (IS_WIN)
 	{
-		char buf[215];
-		GetModuleFileNameA(nullptr, buf, 215);
-		return std::filesystem::path(buf).filename().replace_extension("").string();
+		std::array<char, 32768> path{};
+		const auto length = GetModuleFileNameA(nullptr, path.data(), static_cast<unsigned long>(path.size()));
+		if (length > 0 && static_cast<size_t>(length) < path.size())
+			return std::filesystem::path(string(path.data(), length)).filename().replace_extension("").string();
 	}
-	else
-		return detail::name;
+	return detail::name;
 }
 string APPINFO::organization()
 {
@@ -285,9 +300,18 @@ string APPINFO::hostKernelType() { return "Unknown"; }
 string APPINFO::hostKernelVersion() { return "Unknown"; }
 string APPINFO::hostName()
 {
-	char hostname[1024];
-	gethostname(hostname, sizeof(hostname));
-	return hostname;
+	if constexpr (IS_WIN)
+	{
+		const auto hostname = detail::environmentVariable("COMPUTERNAME");
+		return hostname.empty() ? "Unknown" : hostname;
+	}
+	else
+	{
+		std::array<char, 1024> hostname{};
+		if (gethostname(hostname.data(), hostname.size()) == 0)
+			return hostname.data();
+		return "Unknown";
+	}
 }
 
 string APPINFO::hostUniqueID()
@@ -316,12 +340,16 @@ string APPINFO::hostProductVersion()
 // Path Info
 string APPINFO::home()
 {
-	if constexpr (IS_LINUX)
-		return getenv("HOME");
-	else if constexpr (IS_MAC)
-		return getenv("HOME");
+	if constexpr (IS_LINUX || IS_MAC)
+		return detail::environmentVariable("HOME");
 	else if constexpr (IS_WIN)
-		return getenv("HOMEPATH");
+	{
+		auto path = detail::environmentVariable("USERPROFILE");
+		if (path.empty())
+			path = detail::environmentVariable("HOMEDRIVE") + detail::environmentVariable("HOMEPATH");
+		return detail::normalizedPath(std::move(path));
+	}
+	return {};
 }
 
 // Path Info
@@ -343,10 +371,12 @@ string APPINFO::appDataDir()
 		return home().append("/Library/Application Support/").append(name).append("/");
 	else if constexpr (IS_WIN)
 	{
-		std::string APPDATA = getenv("APPDATA");
-		std::replace(APPDATA.begin(), APPDATA.end(), '\\', '/');
-		return std::string(APPDATA).append("/").append(name).append("/");
+		auto path = detail::normalizedPath(detail::environmentVariable("APPDATA"));
+		if (path.empty())
+			path = home().append("/AppData/Roaming");
+		return path.append("/").append(name).append("/");
 	}
+	return {};
 }
 string APPINFO::logDir()
 {
@@ -358,10 +388,7 @@ string APPINFO::crashDumpDir()
 }
 string APPINFO::documentsDir()
 {
-	if constexpr (IS_LINUX || IS_MAC)
-		return home().append("/Documents/");
-	else if constexpr (IS_WIN)
-		return std::string("C:/Users/").append(getenv("USER")).append("/Documents/");
+	return home().append("/Documents/");
 }
 string APPINFO::tempDir()
 {
@@ -370,7 +397,13 @@ string APPINFO::tempDir()
 	else if constexpr (IS_MAC)
 		return home().append("/tmp");
 	else if constexpr (IS_WIN)
-		return std::string(getenv("LOCALAPPDATA")).append("/Temp/");
+	{
+		auto path = detail::normalizedPath(detail::environmentVariable("LOCALAPPDATA"));
+		if (!path.empty())
+			return path.append("/Temp/");
+	}
+	std::error_code error;
+	return std::filesystem::temp_directory_path(error).string();
 }
 string APPINFO::configDir()
 {
@@ -379,7 +412,13 @@ string APPINFO::configDir()
 	else if constexpr (IS_MAC)
 		return home().append("/Library/Preferences/");
 	else if constexpr (IS_WIN)
-		return std::string(getenv("LOCALAPPDATA")).append(name());
+	{
+		auto path = detail::normalizedPath(detail::environmentVariable("LOCALAPPDATA"));
+		if (path.empty())
+			path = home().append("/AppData/Local");
+		return path.append("/").append(name());
+	}
+	return {};
 }
 
 // Current Application Instance Info

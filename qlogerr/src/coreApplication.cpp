@@ -17,10 +17,7 @@ CoreApplication::CoreApplication(int& argc, char* argv[])
 //--------------------------------------------------------------------------------------------------
 //	~CoreApplication (public ) []
 //--------------------------------------------------------------------------------------------------
-CoreApplication::~CoreApplication()
-{
-
-}
+CoreApplication::~CoreApplication() = default;
 
 //--------------------------------------------------------------------------------------------------
 //	notify () []
@@ -34,8 +31,7 @@ bool CoreApplication::notify(QObject* object, QEvent* event)
 		retVal = QCoreApplication::notify(object, event);
 
 		// rethrow exceptions from threads
-		std::exception_ptr exceptionPtr = g_exceptionPtr;
-		g_exceptionPtr = nullptr;
+		const std::exception_ptr exceptionPtr = logerr::takeException();
 
 		if (exceptionPtr)
 			std::rethrow_exception(exceptionPtr);
@@ -46,16 +42,16 @@ bool CoreApplication::notify(QObject* object, QEvent* event)
 			LOGERR << e.what() << std::endl;
 
 		if (e.fatal())
-			throw e;
+			throw;
 	}
 	catch (const std::exception& e)
 	{
 		LOGERR << e.what() << std::endl;
-		throw e;
+		throw;
 	}
 	catch (...)
 	{
-		const char* error = "Unhandled exception caught in CoreApplication::notify() catch-all block.";
+		constexpr auto error = "Unhandled exception caught in CoreApplication::notify() catch-all block.";
 		LOGERR << error << std::endl;
 
 		throw;

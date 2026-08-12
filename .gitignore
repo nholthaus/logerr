@@ -36,3 +36,9 @@
 *.exe
 *.out
 *.app
+
+# Generated coverage reports (coverage.cfg is source-controlled configuration)
+coverage*.html
+coverage.xml
+coverage.css
+coverage.js
