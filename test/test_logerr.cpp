@@ -699,3 +699,22 @@ TEST_F(LogerrCoreFixture, TraceSiteDedupIsThreadSafe)
 	}
 	EXPECT_EQ(firstWins.load(), 1) << "exactly one thread sees the site as fresh; the rest are deduped";
 }
+
+TEST_F(LogerrCoreFixture, TracingErrorLineAcceptsAModuleTagAndStillTraces)
+{
+	logerr::resetTracedSites();
+	CoutCapture capture;
+
+	// A module-scoped consumer constructs TracingErrorLine with its own tag; it must show the tag AND still carry the
+	// deduped stack trace, identical to the default (APPINFO::name()) form.
+	{
+		logerr::TracingErrorLine(logerr::sourceFilename(__FILE__), __FILE__, static_cast<std::uint32_t>(__LINE__),
+		                         "TestModuleFn", std::string("MySubsystem"))
+		    << "module-tagged failure" << std::endl;
+	}
+
+	const std::string output = capture.str();
+	EXPECT_NE(output.find("[MySubsystem]"), std::string::npos) << "the module tag replaces the app name";
+	EXPECT_NE(output.find("module-tagged failure"), std::string::npos);
+	EXPECT_NE(output.find("0x"), std::string::npos) << "a module-tagged line still carries the full trace";
+}

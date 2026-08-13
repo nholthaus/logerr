@@ -139,10 +139,14 @@ namespace logerr
 	class TracingErrorLine
 	{
 	public:
-		TracingErrorLine(const char* file, const char* fileKey, std::uint32_t line, const char* function)
+		/// @param tag  the subsystem/app tag shown in the [tag] field; defaults to APPINFO::name(). A module-scoped
+		///             consumer (a per-subsystem logger) passes its own tag here and inherits the identical traced,
+		///             deduped behavior instead of forking the macro.
+		explicit TracingErrorLine(const char* file, const char* fileKey, std::uint32_t line, const char* function,
+		                          const std::string& tag = APPINFO::name())
 		    : m_fileKey(fileKey), m_line(line)
 		{
-			std::cout << '[' << TimestampLite() << "] [" << APPINFO::name() << "] [ERROR]    [" << file << ':' << line
+			std::cout << '[' << TimestampLite() << "] [" << tag << "] [ERROR]    [" << file << ':' << line
 			          << ' ' << function << "]  ";
 		}
 		~TracingErrorLine()
