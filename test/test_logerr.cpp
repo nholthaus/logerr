@@ -486,6 +486,24 @@ TEST_F(LogerrCoreFixture, StackTraceResolvesSymbolsAndIsNotThePlaceholder)
 	}
 }
 
+TEST_F(LogerrCoreFixture, RepeatedSymbolizationStaysCorrectAcrossTheModuleCache)
+{
+	// Symbolization caches each module's opened BFD + symbol table for the process lifetime (the fix for per-frame
+	// re-open/re-slurp that made a single trace cost tens of ms on a large binary). Guard that the CACHED path stays
+	// correct: many distinct traces in a row must each resolve to real content, never a stale/empty/placeholder result
+	// from a reused-but-broken handle. The first call warms the cache; the rest exercise the cached module. (On a
+	// stripped build with no symbols every frame is "<no symbol found>" but the trace is still non-empty and carries
+	// addresses, so the assertion is on resolvability, gated the same way as the sibling test.)
+	StackTrace::resetDeduplication();
+	for (int i = 0; i < 8; ++i)
+	{
+		const std::string trace = traceProbeInnermost();
+		EXPECT_FALSE(trace.empty()) << "trace " << i << " must carry content on the cached path";
+		EXPECT_EQ(trace.find("<unable to initialize Windows symbols>"), std::string::npos) << trace;
+		EXPECT_NE(trace.find("0x"), std::string::npos) << "trace " << i << " must carry frame addresses";
+	}
+}
+
 TEST_F(LogerrCoreFixture, TimestampAndSourceFilenameArePortable)
 {
 	TimestampLite timestamp;

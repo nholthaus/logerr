@@ -17,7 +17,10 @@
 
 // std
 #include <iostream>
+#include <map>
+#include <mutex>
 #include <sstream>
+#include <string>
 
 // NOTE: There are two different bfd interfaces, and you don't know which one you're going to have on your platform.
 // So, try to figure it out and call the right things.
@@ -160,49 +163,78 @@ std::vector<std::pair<std::string, std::string>> translateAddressesBuf(bfd* abfd
 	return addressBuffer;
 }
 
-//--------------------------------------------------------------------------------------------------
-//	processFile (public ) [static ]
-//--------------------------------------------------------------------------------------------------
-std::vector<std::pair<std::string, std::string>> processFile(const char* fileName, bfd_vma* addr, int naddr)
+// A parsed, symbol-table-loaded BFD for one module. Opening the file, matching the object format, and slurping the
+// symbol table is the dominant cost of symbolization - and it is identical for every address that resolves into the
+// same module. So do it ONCE per file and keep it for the process lifetime.
+struct OpenModule
 {
-	std::vector<std::pair<std::string, std::string>> ret_buf;
+	bfd*      abfd = nullptr;    ///< nullptr when the module could not be opened / has no usable symbols.
+	asymbol** syms = nullptr;
+};
 
-	bfd* abfd = bfd_openr(fileName, NULL);
+//--------------------------------------------------------------------------------------------------
+//	openModuleCached (public ) [static ]
+//--------------------------------------------------------------------------------------------------
+// Return the opened+slurped BFD for fileName, opening it on first use and caching it thereafter. A stack trace into a
+// large binary touches the same module for most of its frames, and repeated traces touch the same modules again; the
+// old code re-opened the file and re-read its ENTIRE symbol table for every single frame, which is what made a single
+// trace cost tens to hundreds of milliseconds on a large executable. The cache collapses that to one open+slurp per
+// module for the whole process. The handles are intentionally never closed - they are a small, bounded set (one per
+// loaded module) held for the lifetime of a diagnostic facility, and freeing them would only re-incur the cost.
+const OpenModule& openModuleCached(const char* fileName)
+{
+	static std::mutex                    cacheMutex;
+	static std::map<std::string, OpenModule> cache;
+
+	const std::lock_guard<std::mutex> lock(cacheMutex);
+
+	const std::string key(fileName);
+	if (const auto it = cache.find(key); it != cache.end())
+		return it->second;
+
+	OpenModule module;
+	bfd*       abfd = bfd_openr(fileName, NULL);
 	if (!abfd)
 	{
 		LOGERR << "Error opening bfd file  " << fileName << std::endl;
-		return ret_buf;
+		return cache.emplace(key, module).first->second;
 	}
-
 	if (bfd_check_format(abfd, bfd_archive))
 	{
 		LOGERR << "Cannot get addresses from archive  " << fileName << std::endl;
 		bfd_close(abfd);
-		return ret_buf;
+		return cache.emplace(key, module).first->second;
 	}
-
 	char** matching;
 	if (!bfd_check_format_matches(abfd, bfd_object, &matching))
 	{
 		LOGERR << "Format does not match for archive  " << fileName << std::endl;
 		bfd_close(abfd);
-		return ret_buf;
+		return cache.emplace(key, module).first->second;
 	}
-
 	asymbol** syms = kstSlurpSymtab(abfd, fileName);
 	if (!syms)
 	{
 		LOGERR << "Failed to read symbol table for archive  " << fileName << std::endl;
 		bfd_close(abfd);
-		return ret_buf;
+		return cache.emplace(key, module).first->second;
 	}
 
-	ret_buf = translateAddressesBuf(abfd, addr, naddr, syms);
+	module.abfd = abfd;
+	module.syms = syms;
+	return cache.emplace(key, module).first->second;
+}
 
-	free(syms);
+//--------------------------------------------------------------------------------------------------
+//	processFile (public ) [static ]
+//--------------------------------------------------------------------------------------------------
+std::vector<std::pair<std::string, std::string>> processFile(const char* fileName, bfd_vma* addr, int naddr)
+{
+	const OpenModule& module = openModuleCached(fileName);
+	if (!module.abfd || !module.syms)
+		return {};
 
-	bfd_close(abfd);
-	return ret_buf;
+	return translateAddressesBuf(module.abfd, addr, naddr, module.syms);
 }
 
 //--------------------------------------------------------------------------------------------------
