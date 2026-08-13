@@ -13,8 +13,7 @@ set(qlogerr_headers
     include/logReceiver.h
     include/StackTraceSIGSEGVQt.h
     include/qCoreAppThread.h
-    include/qCoreAppThreadPrivate.h
-    include/QEventThread.h)
+    include/qCoreAppThreadPrivate.h)
 
 set(qlogerr_sources
     src/Application.cpp
@@ -39,6 +38,7 @@ target_include_directories(qlogerr
 target_link_libraries(qlogerr
     PUBLIC
         logerr::logerr
+        logerr::qeventthread
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets

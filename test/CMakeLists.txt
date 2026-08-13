@@ -45,7 +45,7 @@ if(BUILD_WITH_QT)
     add_executable(qcoreappthreadTests test_qcoreappthread.cpp)
 
     target_link_libraries(logerrQtTests PRIVATE logerr::qlogerr Qt6::Test GTest::gtest)
-    target_link_libraries(qeventthreadTests PRIVATE logerr::qlogerr GTest::gtest)
+    target_link_libraries(qeventthreadTests PRIVATE logerr::qeventthread Qt6::Test GTest::gtest)
     target_link_libraries(coreApplicationTests PRIVATE logerr::qlogerr GTest::gtest)
     target_link_libraries(qcoreappthreadTests PRIVATE logerr::qlogerr GTest::gtest_main)
     logerr_enable_project_warnings(logerrQtTests)

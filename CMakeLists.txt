@@ -55,6 +55,7 @@ add_subdirectory(gitinfo)
 add_subdirectory(logerr)
 
 if(BUILD_WITH_QT)
+    add_subdirectory(qeventthread)    # Qt::Core-only worker primitive; qlogerr links it so GUI consumers get it too
     add_subdirectory(qlogerr)
 endif()
 
