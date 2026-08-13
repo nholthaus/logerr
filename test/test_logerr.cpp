@@ -481,7 +481,9 @@ TEST_F(LogerrCoreFixture, StackTraceResolvesSymbolsAndIsNotThePlaceholder)
 	const bool anyResolved = trace.find("<no symbol found>") == std::string::npos
 	                         || trace.find("traceProbeInnermost") != std::string::npos;
 	if (anyResolved)
+	{
 		EXPECT_NE(trace.find("traceProbeInnermost"), std::string::npos) << trace;
+	}
 }
 
 TEST_F(LogerrCoreFixture, TimestampAndSourceFilenameArePortable)
