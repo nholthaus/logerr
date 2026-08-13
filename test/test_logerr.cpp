@@ -634,13 +634,15 @@ namespace
 	// Drive captureSuppressed() `count` times from ONE call instruction (this loop), so each capture sees the identical
 	// stack. Returns the per-occurrence suppression flags: the first occurrence of the stack is content (false), every
 	// identical repeat after it is suppressed (true). This is the compiler-robust way to produce genuinely identical
-	// stacks - it does not depend on two textually-distinct capture points sharing a return address.
-	LOGERR_TEST_NOINLINE std::vector<bool> captureSuppressionSequence(int count)
+	// stacks - it does not depend on two textually-distinct capture points sharing a return address. The flags use
+	// std::vector<char> rather than std::vector<bool>: the bit-packed vector<bool> specialization trips a gcc
+	// -Werror=array-bounds false positive in its reallocation memmove.
+	LOGERR_TEST_NOINLINE std::vector<char> captureSuppressionSequence(int count)
 	{
-		std::vector<bool> flags;
+		std::vector<char> flags;
 		flags.reserve(static_cast<std::size_t>(count));
 		for (int i = 0; i < count; ++i)
-			flags.push_back(captureSuppressed());
+			flags.push_back(captureSuppressed() ? 1 : 0);
 		return flags;
 	}
 }
@@ -778,11 +780,11 @@ TEST_F(LogerrCoreFixture, IdenticalStackTracesOnceThenIsSuppressed)
 	// captureSuppressionSequence drives one capture instruction through a loop, so every occurrence records the identical
 	// stack - the first is content (not suppressed), every repeat after it is suppressed.
 	StackTrace::resetDeduplication();
-	const std::vector<bool> suppressed = captureSuppressionSequence(4);
+	const std::vector<char> suppressed = captureSuppressionSequence(4);
 	ASSERT_EQ(suppressed.size(), 4U);
-	EXPECT_FALSE(suppressed[0]) << "the first occurrence of a stack is contentful";
+	EXPECT_EQ(suppressed[0], 0) << "the first occurrence of a stack is contentful";
 	for (std::size_t i = 1; i < suppressed.size(); ++i)
-		EXPECT_TRUE(suppressed[i]) << "identical-stack repeat #" << i << " must be suppressed";
+		EXPECT_EQ(suppressed[i], 1) << "identical-stack repeat #" << i << " must be suppressed";
 }
 
 TEST_F(LogerrCoreFixture, TracingErrorLineAcceptsAModuleTagAndStillTraces)
