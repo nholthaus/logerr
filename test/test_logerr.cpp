@@ -619,12 +619,29 @@ namespace
 	LOGERR_TEST_NOINLINE void pathAlpha() { sharedLogSite(); g_pathSink += 1; }
 	LOGERR_TEST_NOINLINE void pathBravo() { sharedLogSite(); g_pathSink += 2; }
 
-	// Capture a deduplicated trace from ONE fixed call site (this function's body). Two calls to it from the same caller
-	// line produce the identical stack, so the second is suppressed - the vehicle for the single-stack deduplication and
-	// thread-safety assertions. Out of line so it is a real, stable frame.
-	LOGERR_TEST_NOINLINE StackTrace deduplicatedTraceFromSharedStack()
+	// Capture ONE deduplicated trace and report whether it was suppressed. The capture is a single source line, and the
+	// caller invokes this through captureSuppressionSequence's loop - one call instruction executed repeatedly - so
+	// every invocation records the byte-identical stack (this function's frame, ignoring StackTrace's own constructor
+	// frame via ignore=1, over the same loop call site below it). Kept out of line and non-tail (the volatile sink) so it
+	// is a real, stable frame and cannot be folded into the caller.
+	LOGERR_TEST_NOINLINE bool captureSuppressed()
 	{
-		return StackTrace(0, /*deduplicateByStack*/ true);
+		const bool wasSuppressed = StackTrace(1, /*deduplicateByStack*/ true).suppressed();
+		g_pathSink += wasSuppressed ? 1 : 0;
+		return wasSuppressed;
+	}
+
+	// Drive captureSuppressed() `count` times from ONE call instruction (this loop), so each capture sees the identical
+	// stack. Returns the per-occurrence suppression flags: the first occurrence of the stack is content (false), every
+	// identical repeat after it is suppressed (true). This is the compiler-robust way to produce genuinely identical
+	// stacks - it does not depend on two textually-distinct capture points sharing a return address.
+	LOGERR_TEST_NOINLINE std::vector<bool> captureSuppressionSequence(int count)
+	{
+		std::vector<bool> flags;
+		flags.reserve(static_cast<std::size_t>(count));
+		for (int i = 0; i < count; ++i)
+			flags.push_back(captureSuppressed());
+		return flags;
 	}
 }
 
@@ -753,17 +770,19 @@ TEST_F(LogerrCoreFixture, StackDeduplicationIsThreadSafe)
 			});
 	}
 	EXPECT_EQ(completed.load(), threadCount) << "every worker finished; concurrent deduplication did not corrupt or hang";
+}
 
-	// After the concurrent storm the registry is still functional: capturing the SAME stack twice deduplicates. Both
-	// captures originate from the SAME call site (this one loop line) through the same helper, so the stacks are
-	// identical - the first occurrence is contentful, the immediate repeat is suppressed.
+TEST_F(LogerrCoreFixture, IdenticalStackTracesOnceThenIsSuppressed)
+{
+	// The single-stack deduplication invariant, deterministic: the SAME stack captured repeatedly traces exactly once.
+	// captureSuppressionSequence drives one capture instruction through a loop, so every occurrence records the identical
+	// stack - the first is content (not suppressed), every repeat after it is suppressed.
 	StackTrace::resetDeduplication();
-	std::vector<bool> suppressedByIteration;
-	for (int i = 0; i < 2; ++i)
-		suppressedByIteration.push_back(deduplicatedTraceFromSharedStack().suppressed());
-	ASSERT_EQ(suppressedByIteration.size(), 2U);
-	EXPECT_FALSE(suppressedByIteration[0]) << "first occurrence of the stack is contentful";
-	EXPECT_TRUE(suppressedByIteration[1]) << "an immediate identical-stack repeat is suppressed";
+	const std::vector<bool> suppressed = captureSuppressionSequence(4);
+	ASSERT_EQ(suppressed.size(), 4U);
+	EXPECT_FALSE(suppressed[0]) << "the first occurrence of a stack is contentful";
+	for (std::size_t i = 1; i < suppressed.size(); ++i)
+		EXPECT_TRUE(suppressed[i]) << "identical-stack repeat #" << i << " must be suppressed";
 }
 
 TEST_F(LogerrCoreFixture, TracingErrorLineAcceptsAModuleTagAndStillTraces)
