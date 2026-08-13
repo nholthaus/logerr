@@ -54,11 +54,20 @@ class StackTrace
 public:
 	/**
 	 * @brief		Constructor
-	 * @param[in]	ignore	Number of items to ignore in the stack trace. Every time this class is
-	 *						composed in another class or inherited, this number should be incremented
-	 *						by `1`.
+	 * @param[in]	ignore				Number of items to ignore in the stack trace. Every time this class is
+	 *									composed in another class or inherited, this number should be incremented
+	 *									by `1`.
+	 * @param[in]	deduplicateByStack	When true, the trace is suppressed (an EMPTY result) if the exact same
+	 *									call stack has already been traced in this process; identical repeats do
+	 *									not re-symbolize and are not re-logged, while a DIFFERENT path (a distinct
+	 *									call stack) always produces a fresh full trace. When false (the default)
+	 *									the trace is always produced in full, which is the correct behavior for a
+	 *									crash dump or a thrown exception, neither of which may ever be suppressed.
+	 *									The deduplication key is a hash of the raw return addresses captured BEFORE
+	 *									symbolization, so the cheap stack capture is always paid but the expensive
+	 *									per-frame symbol resolution is gated behind a first-seen-stack check.
 	 */
-	explicit StackTrace(unsigned int ignore = 0);
+	explicit StackTrace(unsigned int ignore = 0, bool deduplicateByStack = false);
 
 	/**
 	 * @brief		Stack Trace data
@@ -67,14 +76,29 @@ public:
 	[[nodiscard]] const char* data() const noexcept;
 
 	/**
+	 * @brief		Whether this trace was suppressed as a duplicate stack (deduplicateByStack only).
+	 * @returns		true if an identical call stack was already traced this process and this trace is therefore
+	 *				empty; false if this trace carries content (a first-seen stack, or deduplication not requested).
+	 */
+	[[nodiscard]] bool suppressed() const noexcept;
+
+	/**
 	 * @brief		Stack trace string
 	 * @returns		The results of the stack trace as a QString
 	*/
 	operator std::string() const;
 
+	/**
+	 * @brief		Forget every recorded stack, so the next occurrence of each call stack traces again.
+	 * @details		For test isolation and for a caller that wants a fresh full-trace baseline (for example at
+	 *				the start of a new run or session). Thread-safe.
+	 */
+	static void resetDeduplication() noexcept;
+
 private:
 	static const size_t MAX_FRAMES = 256;    ///< Arbitrary.
 
 	std::string m_value;
+	bool        m_suppressed = false;    ///< true when deduplicateByStack collapsed this trace as a repeat stack.
 };
 #endif    // stackTrace_h_

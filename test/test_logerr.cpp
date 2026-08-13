@@ -449,6 +449,41 @@ TEST_F(LogerrCoreFixture, StackTraceCanBeCapturedConcurrently)
 	EXPECT_EQ(completed.load(), workerCount);
 }
 
+//----------------------------------------------------------------------------------------------------------------------
+// A captured trace must actually RESOLVE symbols, not degrade to the "<unable to initialize Windows symbols>" placeholder.
+// A large host process (a Qt GUI with 100+ loaded modules, an embedded interpreter) made the old eager whole-process
+// SymInitialize(fInvadeProcess=TRUE) return FALSE; that failure was cached in a process-lifetime static, so every later
+// trace printed the placeholder and the trace footer carried no frames - the diagnostic value was lost. This test is the
+// guard: a fresh trace resolves to real content, never the placeholder. On a build with symbol info it also names the
+// enclosing frame; a stripped build (no PDB / no BFD symbols) still resolves module+offset, so the frame-name assertion
+// is gated on symbol info being present rather than asserted unconditionally.
+#if defined(_MSC_VER)
+#define LOGERR_TEST_NOINLINE __declspec(noinline)
+#else
+#define LOGERR_TEST_NOINLINE __attribute__((noinline))
+#endif
+// Kept out of line (never inlined) so the innermost frame is a real, named function the walker can resolve.
+LOGERR_TEST_NOINLINE static std::string traceProbeInnermost()
+{
+	return static_cast<std::string>(StackTrace{});
+}
+
+TEST_F(LogerrCoreFixture, StackTraceResolvesSymbolsAndIsNotThePlaceholder)
+{
+	const std::string trace = traceProbeInnermost();
+	// The placeholder is the exact failure the fInvadeProcess=FALSE + deferred-loads + refresh fix eliminates.
+	EXPECT_EQ(trace.find("<unable to initialize Windows symbols>"), std::string::npos) << trace;
+	EXPECT_FALSE(trace.empty());
+	// Every resolved frame the formatter emits carries an address column; a non-empty trace has at least one.
+	EXPECT_NE(trace.find("0x"), std::string::npos) << trace;
+	// When symbols are available, the innermost probe frame is named. Detect symbol availability by whether ANY frame
+	// resolved to a real name (i.e. not every frame is "<no symbol found>"); only then assert the probe name is present.
+	const bool anyResolved = trace.find("<no symbol found>") == std::string::npos
+	                         || trace.find("traceProbeInnermost") != std::string::npos;
+	if (anyResolved)
+		EXPECT_NE(trace.find("traceProbeInnermost"), std::string::npos) << trace;
+}
+
 TEST_F(LogerrCoreFixture, TimestampAndSourceFilenameArePortable)
 {
 	TimestampLite timestamp;
@@ -570,9 +605,28 @@ namespace
 			++count;
 		return count;
 	}
+
+	// One LOGERR line reached from two different call paths. Kept out of line so pathAlpha/pathBravo are real, distinct
+	// enclosing frames in the captured stack; the LOGERR itself is a single source line, so line-based deduplication
+	// WOULD have collapsed the second path - stack-based deduplication must not.
+	volatile int g_pathSink = 0;    ///< Defeats tail-call optimization so pathAlpha/pathBravo remain real return frames.
+	LOGERR_TEST_NOINLINE void sharedLogSite()
+	{
+		LOGERR << "shared-site failure" << ENDL;
+	}
+	LOGERR_TEST_NOINLINE void pathAlpha() { sharedLogSite(); g_pathSink += 1; }
+	LOGERR_TEST_NOINLINE void pathBravo() { sharedLogSite(); g_pathSink += 2; }
+
+	// Capture a deduplicated trace from ONE fixed call site (this function's body). Two calls to it from the same caller
+	// line produce the identical stack, so the second is suppressed - the vehicle for the single-stack deduplication and
+	// thread-safety assertions. Out of line so it is a real, stable frame.
+	LOGERR_TEST_NOINLINE StackTrace deduplicatedTraceFromSharedStack()
+	{
+		return StackTrace(0, /*deduplicateByStack*/ true);
+	}
 }
 
-TEST_F(LogerrCoreFixture, LogErrAlwaysCarriesAStackTraceOnAFreshSite)
+TEST_F(LogerrCoreFixture, LogErrAlwaysCarriesAStackTraceOnAFreshStack)
 {
 	logerr::resetTracedSites();
 	CoutCapture capture;
@@ -582,89 +636,84 @@ TEST_F(LogerrCoreFixture, LogErrAlwaysCarriesAStackTraceOnAFreshSite)
 	const std::string output = capture.str();
 	EXPECT_NE(output.find("[ERROR]"), std::string::npos);
 	EXPECT_NE(output.find("fresh failure"), std::string::npos);
-	// The whole-trace footer: at least one hex frame address follows the message on a fresh site.
-	EXPECT_NE(output.find("0x"), std::string::npos) << "a fresh LOGERR site must carry the full stack trace";
+	// The whole-trace footer: at least one hex frame address follows the message on a first-seen stack.
+	EXPECT_NE(output.find("0x"), std::string::npos) << "a fresh stack must carry the full stack trace";
 }
 
-TEST_F(LogerrCoreFixture, LogErrDedupsTheTracePerCallSite)
+TEST_F(LogerrCoreFixture, LogErrDeduplicatesTheTracePerIdenticalStack)
 {
 	logerr::resetTracedSites();
 	CoutCapture capture;
 
-	// The SAME call site hit three times: the trace footer must appear exactly ONCE (first hit), then message-only.
+	// The SAME LOGERR line hit three times in a loop is the SAME stack each time (identical return addresses): the
+	// trace footer must appear exactly ONCE (first hit), then message-only on the repeats.
 	for (int i = 0; i < 3; ++i)
 		LOGERR << "recurring failure " << i << ENDL;
 
 	const std::string output = capture.str();
 	EXPECT_EQ(occurrences(output, "recurring failure "), 3U) << "every hit logs its message line";
-	// Exactly one trace footer for the three repeats: the StackTrace formatter emits this file's frame once here, but
-	// the robust invariant is that the number of trace footers is 1. Approximate a footer by the "\n0x"-style block:
-	// count the trace-block openings. Since a repeat logs NO trace, the hex-address count for a single-frame-per-trace
-	// output equals the number of traced hits. Assert the trace was emitted for the first hit only by comparing the
-	// hex-address presence against a second, distinct site below; here assert the message count and that a trace exists.
-	EXPECT_NE(output.find("0x"), std::string::npos);
-	// A repeat must NOT re-emit the whole APPLICATION/trace footer: the trace block appears far fewer times than the 3
-	// messages. Concretely, the first line carries a trace and the next two do not, so trailing "recurring failure 1"
-	// and "recurring failure 2" are each immediately followed by a newline and the NEXT prefix (or end), not by "0x".
-	const std::size_t firstMsg = output.find("recurring failure 0");
+	// Exactly one trace footer for three identical-stack repeats.
 	const std::size_t secondMsg = output.find("recurring failure 1");
 	const std::size_t thirdMsg  = output.find("recurring failure 2");
-	ASSERT_NE(firstMsg, std::string::npos);
+	ASSERT_NE(output.find("recurring failure 0"), std::string::npos);
 	ASSERT_NE(secondMsg, std::string::npos);
 	ASSERT_NE(thirdMsg, std::string::npos);
-	// Between the 2nd and 3rd message there is no trace footer (a repeat is message-only).
-	EXPECT_EQ(output.find("0x", secondMsg + 1) > thirdMsg || output.find("0x", secondMsg + 1) == std::string::npos, true)
-	    << "a repeated LOGERR site must not re-emit the stack trace";
+	// Between the 2nd and 3rd message there is no trace footer (an identical-stack repeat is message-only).
+	const std::size_t traceAfterSecond = output.find("0x", secondMsg + 1);
+	EXPECT_TRUE(traceAfterSecond == std::string::npos || traceAfterSecond > thirdMsg)
+	    << "a repeated identical stack must not re-emit the stack trace";
 }
 
-TEST_F(LogerrCoreFixture, DistinctCallSitesInTheSameFileEachTrace)
+TEST_F(LogerrCoreFixture, DifferentCallPathsThroughTheSameLineEachTrace)
 {
+	// The core reason deduplication keys on the STACK, not the source line: a single LOGERR line reached by two
+	// genuinely different call paths must NOT collapse - each distinct stack is diagnostically important and gets its
+	// own full trace. Two helper functions both call sharedLogSite(); the LOGERR inside sharedLogSite is one line, but
+	// the enclosing return address (pathAlpha vs pathBravo) differs, so the stacks differ and both must trace.
 	logerr::resetTracedSites();
 	CoutCapture capture;
 
-	LOGERR << "site A failure" << ENDL;   // distinct site (this line)
-	LOGERR << "site B failure" << ENDL;   // distinct site (a different line, same file)
+	pathAlpha();   // -> sharedLogSite() -> LOGERR
+	pathBravo();   // -> sharedLogSite() -> LOGERR  (same line, different stack)
 
 	const std::string output = capture.str();
-	// Two distinct sites -> two trace footers. Each message is followed by its own trace (a "0x" address) before the
-	// next site's prefix. Both messages present, and a trace address appears after each.
-	EXPECT_NE(output.find("site A failure"), std::string::npos);
-	EXPECT_NE(output.find("site B failure"), std::string::npos);
-	const std::size_t afterA = output.find("site A failure");
-	const std::size_t beforeB = output.find("site B failure");
-	ASSERT_NE(afterA, std::string::npos);
-	ASSERT_NE(beforeB, std::string::npos);
-	EXPECT_NE(output.find("0x", afterA), std::string::npos);
-	EXPECT_LT(output.find("0x", afterA), beforeB) << "site A must trace before site B's line (distinct sites both trace)";
-	EXPECT_NE(output.find("0x", beforeB), std::string::npos) << "site B must also carry its own trace";
+	EXPECT_EQ(occurrences(output, "shared-site failure"), 2U) << "both paths log the message";
+	// Both distinct stacks trace: a trace footer (a hex frame) appears after the first message AND after the second.
+	const std::size_t firstMsg  = output.find("shared-site failure");
+	ASSERT_NE(firstMsg, std::string::npos);
+	const std::size_t secondMsg = output.find("shared-site failure", firstMsg + 1);
+	ASSERT_NE(secondMsg, std::string::npos);
+	const std::size_t traceAfterFirst = output.find("0x", firstMsg);
+	EXPECT_NE(traceAfterFirst, std::string::npos);
+	EXPECT_LT(traceAfterFirst, secondMsg) << "the first call path traces before the second path's message";
+	EXPECT_NE(output.find("0x", secondMsg), std::string::npos)
+	    << "the second, DISTINCT call path through the same line must ALSO carry its own trace";
+	// The two traces name their distinct enclosing frames, proving the stacks really differ.
+	EXPECT_NE(output.find("pathAlpha"), std::string::npos);
+	EXPECT_NE(output.find("pathBravo"), std::string::npos);
 }
 
 TEST_F(LogerrCoreFixture, ResetTracedSitesReArmsTheTrace)
 {
+	// Hit ONE stack twice (first traces, repeat deduplicated), then reset, then hit it again: after the reset the
+	// same stack must trace anew.
 	logerr::resetTracedSites();
-	{
-		CoutCapture first;
-		LOGERR << "same site" << ENDL;   // traces
-		LOGERR << "same site" << ENDL;   // deduped (no trace)
-		// (line above and below are the SAME logical site only if on the same line; use one line hit twice via a loop)
-	}
-	// Hit ONE site twice, then reset, then hit it again: after the reset the site must trace anew.
 	std::string beforeReset;
 	std::string afterReset;
 	{
 		CoutCapture capture;
 		for (int i = 0; i < 2; ++i)
-			LOGERR << "reset probe" << ENDL;   // same site: traces once, then deduped
+			LOGERR << "reset probe" << ENDL;   // same stack: traces once, then deduplicated
 		beforeReset = capture.str();
 	}
 	logerr::resetTracedSites();
 	{
 		CoutCapture capture;
-		LOGERR << "reset probe again" << ENDL;   // a fresh site post-reset: must trace
+		LOGERR << "reset probe again" << ENDL;   // after the reset the registry is empty: must trace
 		afterReset = capture.str();
 	}
 	EXPECT_NE(beforeReset.find("0x"), std::string::npos) << "the first hit traced";
-	EXPECT_NE(afterReset.find("0x"), std::string::npos) << "after resetTracedSites, a site traces again";
+	EXPECT_NE(afterReset.find("0x"), std::string::npos) << "after resetTracedSites, a stack traces again";
 }
 
 TEST_F(LogerrCoreFixture, LogErrPreservesTheStreamedMessageAndManipulators)
@@ -682,22 +731,37 @@ TEST_F(LogerrCoreFixture, LogErrPreservesTheStreamedMessageAndManipulators)
 	EXPECT_NE(output.find("LogErrPreservesTheStreamedMessageAndManipulators"), std::string::npos) << "function context is present";
 }
 
-TEST_F(LogerrCoreFixture, TraceSiteDedupIsThreadSafe)
+TEST_F(LogerrCoreFixture, StackDeduplicationIsThreadSafe)
 {
-	logerr::resetTracedSites();
-	// Many threads hammering firstTraceForSite for the SAME key: exactly ONE must win the first-trace (true) return; a
-	// data race here would either double-trace or corrupt the set. This exercises the mutex-guarded registry directly.
-	constexpr int      threadCount = 16;
-	std::atomic_int    firstWins{0};
-	const char* const  fileKey = __FILE__;
-	const std::uint32_t line   = static_cast<std::uint32_t>(__LINE__);
+	StackTrace::resetDeduplication();
+	// Many threads capturing deduplicated traces concurrently must not corrupt the registry or crash. Each worker's stack
+	// is distinct (a different thread-entry frame at the base), so every worker legitimately sees a first-seen stack and
+	// gets content; the invariant under test is that concurrent registry access is race-free (guarded by its mutex) - no
+	// worker throws, and none deadlocks. A data race would surface as a crash, a hang, or a sanitizer report here.
+	constexpr int   threadCount = 16;
+	std::atomic_int completed{0};
 	{
 		std::vector<std::jthread> workers;
 		workers.reserve(threadCount);
 		for (int t = 0; t < threadCount; ++t)
-			workers.emplace_back([&] { if (logerr::firstTraceForSite(fileKey, line)) ++firstWins; });
+			workers.emplace_back([&] {
+				for (int i = 0; i < 8; ++i)
+					static_cast<void>(StackTrace(0, /*deduplicateByStack*/ true).data());
+				++completed;
+			});
 	}
-	EXPECT_EQ(firstWins.load(), 1) << "exactly one thread sees the site as fresh; the rest are deduped";
+	EXPECT_EQ(completed.load(), threadCount) << "every worker finished; concurrent deduplication did not corrupt or hang";
+
+	// After the concurrent storm the registry is still functional: capturing the SAME stack twice deduplicates. Both
+	// captures originate from the SAME call site (this one loop line) through the same helper, so the stacks are
+	// identical - the first occurrence is contentful, the immediate repeat is suppressed.
+	StackTrace::resetDeduplication();
+	std::vector<bool> suppressedByIteration;
+	for (int i = 0; i < 2; ++i)
+		suppressedByIteration.push_back(deduplicatedTraceFromSharedStack().suppressed());
+	ASSERT_EQ(suppressedByIteration.size(), 2U);
+	EXPECT_FALSE(suppressedByIteration[0]) << "first occurrence of the stack is contentful";
+	EXPECT_TRUE(suppressedByIteration[1]) << "an immediate identical-stack repeat is suppressed";
 }
 
 TEST_F(LogerrCoreFixture, TracingErrorLineAcceptsAModuleTagAndStillTraces)

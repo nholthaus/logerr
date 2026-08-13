@@ -52,7 +52,6 @@
 #include <mutex>
 #include <string>
 #include <thread>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -102,57 +101,41 @@ namespace logerr
 		return std::exchange(g_exceptionPtr, nullptr);
 	}
 
-	/// De-dup registry for LOGERR's full-trace footer: each distinct call site (file + line) logs its stack trace ONCE,
-	/// then only the one-line message on repeats, so a churny error site (a reconnect blip) records the trace once
-	/// without spamming an identical trace every occurrence.
-	inline std::mutex                                                  g_tracedSitesMutex;
-	inline std::unordered_set<std::uint64_t>                           g_tracedSites;
-
-	/// A stable per-call-site key: the __FILE__ pointer (one interned literal per source file, identical across a file's
-	/// call sites) folded with __LINE__. Distinct sites in the same file get distinct keys (line differs); the same site
-	/// hit repeatedly gets the same key. Pointer identity is stable within a process, so no string hashing is needed.
-	inline std::uint64_t traceSiteKey(const char* fileKey, std::uint32_t line) noexcept
-	{
-		return (reinterpret_cast<std::uint64_t>(fileKey) << 20) ^ line;
-	}
-
-	/// True the FIRST time a given call site logs; false on every repeat. Records the site so the footer traces once.
-	inline bool firstTraceForSite(const char* fileKey, std::uint32_t line) noexcept
-	{
-		const std::lock_guard<std::mutex> lock(g_tracedSitesMutex);
-		return g_tracedSites.insert(traceSiteKey(fileKey, line)).second;
-	}
-
-	/// Forget every recorded trace site, so the NEXT hit of each LOGERR site traces again. For test isolation and for a
-	/// caller that wants a fresh full-trace baseline (e.g. at the start of a new run/session).
+	/// Forget every recorded stack, so the NEXT occurrence of each call stack traces again. Forwards to StackTrace's
+	/// deduplication registry. For test isolation and for a caller that wants a fresh full-trace baseline (for example at
+	/// the start of a new run or session).
 	inline void resetTracedSites() noexcept
 	{
-		const std::lock_guard<std::mutex> lock(g_tracedSitesMutex);
-		g_tracedSites.clear();
+		StackTrace::resetDeduplication();
 	}
 
 	/// RAII error-log line: prints the [ts][app][ERROR][file:line func] prefix on construction, forwards << to std::cout,
-	/// and on destruction appends the FULL stack trace the FIRST time this call site logs (deduped by firstTraceForSite),
-	/// then a newline. So every LOGERR carries the whole trace in the log, without a trace-per-line flood on a repeating
-	/// site, and every existing `LOGERR << a << b << ENDL` call site keeps compiling unchanged (the trailing ENDL is a
-	/// harmless extra newline before the footer).
+	/// and on destruction appends the FULL stack trace UNLESS the exact same call stack was already traced in this
+	/// process. Deduplication is by STACK, not by call site: a repeat of the identical stack is suppressed (message only,
+	/// no trace footer), but a DIFFERENT call path reaching the same LOGERR line always traces in full, so no distinct
+	/// stack is ever hidden. So every LOGERR carries its whole trace the first time each unique stack occurs, without a
+	/// trace-per-line flood on a churny site, and every existing `LOGERR << a << b << ENDL` call site keeps compiling
+	/// unchanged (the trailing ENDL is a harmless extra newline before the footer).
 	class TracingErrorLine
 	{
 	public:
 		/// @param tag  the subsystem/app tag shown in the [tag] field; defaults to APPINFO::name(). A module-scoped
 		///             consumer (a per-subsystem logger) passes its own tag here and inherits the identical traced,
-		///             deduped behavior instead of forking the macro.
-		explicit TracingErrorLine(const char* file, const char* fileKey, std::uint32_t line, const char* function,
+		///             deduplicated behavior instead of forking the macro.
+		explicit TracingErrorLine(const char* file, const char* /*fileKey*/, std::uint32_t line, const char* function,
 		                          const std::string& tag = APPINFO::name())
-		    : m_fileKey(fileKey), m_line(line)
 		{
 			std::cout << '[' << TimestampLite() << "] [" << tag << "] [ERROR]    [" << file << ':' << line
 			          << ' ' << function << "]  ";
 		}
 		~TracingErrorLine()
 		{
-			if (firstTraceForSite(m_fileKey, m_line))
-				std::cout << '\n' << static_cast<std::string>(::StackTrace(2));
+			// Deduplicate by stack: a first-seen stack yields content, an identical repeat yields a suppressed (empty)
+			// trace, and a distinct call path through the same line yields its own full trace. Only prepend the footer
+			// newline when there is a trace to print.
+			const ::StackTrace trace(2, /*deduplicateByStack*/ true);
+			if (!trace.suppressed())
+				std::cout << '\n' << static_cast<std::string>(trace);
 			std::cout << std::endl;
 		}
 		template<typename T>
@@ -169,9 +152,6 @@ namespace logerr
 			std::cout << manip;
 			return *this;
 		}
-	private:
-		const char*   m_fileKey;
-		std::uint32_t m_line;
 	};
 }    // namespace logerr
 
