@@ -3,6 +3,7 @@
 //----------------------------
 
 #include <appinfo.h>
+#include <asyncTraceLog.h>
 #include <date.h>
 #include <StackTrace.h>
 #include <logerrMacros.h>
@@ -57,6 +58,10 @@ void stackTraceSIGSEGV(int)
 	}
 
 	LOGINFO << APPINFO::name() << " terminated due to a fatal error (application crash). Exiting with code 1..." << std::endl;
+
+	// LOGERR is asynchronous: drain and stop the trace-log worker synchronously so the crash entry (and any later
+	// error line above) is written before the process dies.
+	logerr::flushTracedErrors();
 
 	std::exit(1);
 }

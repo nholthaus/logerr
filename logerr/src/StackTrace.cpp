@@ -43,7 +43,7 @@ namespace
 
 	// FNV-1a over the raw frame pointers. Cheap (a handful of nanoseconds over the already-captured array) and stable
 	// within a process run, so identical stacks hash identically.
-	std::uint64_t hashStack(const void* const* frames, std::size_t count) noexcept
+	std::uint64_t hashStack(void* const* frames, std::size_t count) noexcept
 	{
 		std::uint64_t hash = 1469598103934665603ULL;
 		for (std::size_t i = 0; i < count; ++i)
@@ -58,14 +58,23 @@ namespace
 		return hash;
 	}
 
-	// True the FIRST time this exact stack is seen in the process; false on every identical repeat. Records the stack so
-	// a later identical occurrence is suppressed.
-	bool firstTimeForStack(const void* const* frames, std::size_t count)
-	{
-		const std::lock_guard<std::mutex> lock(g_tracedStacksMutex);
-		return g_tracedStacks.insert(hashStack(frames, count)).second;
-	}
 }    // namespace
+
+//--------------------------------------------------------------------------------------------------
+//	firstTimeForStack ( public, static )
+//--------------------------------------------------------------------------------------------------
+/// @brief		Whether the exact call stack in @p frames has already been traced in this process.
+/// @param[in]	frames	the raw return addresses that identify the stack.
+/// @param[in]	count	the number of addresses in @p frames.
+/// @return		true the first time this exact stack is seen; false on every identical repeat.
+/// @details	Records the stack on first sight so a later identical occurrence is suppressed. The key is a hash of the
+///				raw return addresses, computed BEFORE any symbolization. Thread-safe.
+//--------------------------------------------------------------------------------------------------
+bool StackTrace::firstTimeForStack(void* const* frames, int count)
+{
+	const std::lock_guard<std::mutex> lock(g_tracedStacksMutex);
+	return g_tracedStacks.insert(hashStack(frames, static_cast<std::size_t>(count))).second;
+}
 
 //--------------------------------------------------------------------------------------------------
 //	resetDeduplication ( public, static )
@@ -89,8 +98,69 @@ bool StackTrace::suppressed() const noexcept
 //--------------------------------------------------------------------------------------------------
 StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= false*/)
 {
+#ifdef WINDOWS
+	void* stack[MAX_FRAMES]{};
+	const unsigned short frames = CaptureStackBackTrace(ignore, MAX_FRAMES, stack, nullptr);
+	// Gate the expensive per-frame symbolization behind a first-seen-stack check when deduplication is requested. The
+	// raw addresses are already captured; a repeat of the exact same stack produces an empty, suppressed trace here and
+	// never touches dbghelp again. A distinct stack (a different call path, even through the same source line) hashes
+	// differently and falls through to a full trace.
+	if (deduplicateByStack && !firstTimeForStack(stack, frames))
+	{
+		m_suppressed = true;
+		return;
+	}
+	// Skip the innermost captured frame (this CaptureStackBackTrace call site) and symbolize the rest.
+	if (frames > 0)
+		m_value = formatFrames(stack + 1, frames - 1);
+#else
+	// storage array for stack trace address data
+	void* trace[MAX_FRAMES];
+
+	// retrieve current stack addresses
+	const int frames = backtrace(trace, sizeof(trace) / sizeof(void*));
+
+	if (frames == 0)
+	{
+		m_value.append("<empty, possibly corrupt>\n");
+		return;
+	}
+
+	// Gate the expensive symbolization behind a first-seen-stack check when deduplication is requested (identical to the
+	// Windows branch): the raw addresses are captured, a repeat of the exact same stack is suppressed here and never
+	// symbolized again, and a distinct call path always traces in full.
+	if (deduplicateByStack && !firstTimeForStack(trace, frames))
+	{
+		m_suppressed = true;
+		return;
+	}
+
+	// Skip the innermost frame (this backtrace call site) plus the caller-requested `ignore` frames, then symbolize.
+	const int skip = 1 + static_cast<int>(ignore);
+	if (frames > skip)
+		m_value = formatFrames(trace + skip, frames - skip);
+#endif
+}
+
+//--------------------------------------------------------------------------------------------------
+//	formatFrames ( public, static )
+//--------------------------------------------------------------------------------------------------
+/// @brief		Symbolize a caller-provided array of raw return addresses into the formatted trace footer.
+/// @param[in]	frames	the raw return addresses to symbolize, in innermost-first order.
+/// @param[in]	count	the number of addresses in @p frames.
+/// @return		The formatted, newline-terminated trace footer; empty when @p count is zero.
+/// @details	Shared by the constructor (over its own captured, post-skip frames) and the async trace-log worker (over
+///				the frames captured at the log site). Both DbgHelp and the BFD-backed symbolizer keep process-global
+///				state and are not safe to call concurrently, so access is serialized here; symbolization is otherwise
+///				identical to the historical per-frame formatting on both platforms.
+//--------------------------------------------------------------------------------------------------
+std::string StackTrace::formatFrames(void* const* frames, int count)
+{
+	if (count <= 0)
+		return {};
+
 	// Both DbgHelp and the BFD-backed symbolizer maintain process-global state and are not safe to call concurrently.
-	static std::mutex stackTraceMutex;
+	static std::mutex     stackTraceMutex;
 	const std::lock_guard stackTraceLock(stackTraceMutex);
 #ifdef WINDOWS
 	const auto process = GetCurrentProcess();
@@ -114,44 +184,29 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= 
 		return false;
 	}();
 	if (!symbolsInitialized)
-	{
-		m_value = "<unable to initialize Windows symbols>\n";
-		return;
-	}
-	void* stack[MAX_FRAMES]{};
-	const unsigned short frames = CaptureStackBackTrace(ignore, MAX_FRAMES, stack, nullptr);
-	// Gate the expensive per-frame symbolization behind a first-seen-stack check when deduplication is requested. The
-	// raw addresses are already captured; a repeat of the exact same stack produces an empty, suppressed trace here and
-	// never touches dbghelp again. A distinct stack (a different call path, even through the same source line) hashes
-	// differently and falls through to a full trace.
-	if (deduplicateByStack && !firstTimeForStack(stack, frames))
-	{
-		m_suppressed = true;
-		return;
-	}
+		return "<unable to initialize Windows symbols>\n";
+
 	auto* rawSymbol = static_cast<SYMBOL_INFO*>(std::calloc(sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(char), 1));
 	if (rawSymbol == nullptr)
-	{
-		m_value = "<unable to allocate Windows symbol buffer>\n";
-		return;
-	}
+		return "<unable to allocate Windows symbol buffer>\n";
+
 	const std::unique_ptr<SYMBOL_INFO, decltype(&std::free)> symbol(rawSymbol, &std::free);
 	symbol->MaxNameLen   = MAX_SYM_NAME;
 	symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
 	std::vector<std::string> symbolNames;
-	std::vector<ULONG64> addresses;
+	std::vector<ULONG64>     addresses;
 	std::vector<std::string> fileNames;
-	symbolNames.reserve(frames);
-	addresses.reserve(frames);
-	fileNames.reserve(frames);
+	symbolNames.reserve(static_cast<size_t>(count));
+	addresses.reserve(static_cast<size_t>(count));
+	fileNames.reserve(static_cast<size_t>(count));
 
-	for (unsigned short i = 1; i < frames; ++i)
+	for (int i = 0; i < count; ++i)
 	{
-		const auto address = reinterpret_cast<DWORD64>(stack[i]);
-		DWORD64 symbolDisplacement = 0;
-		const bool symbolResolved = SymFromAddr(process, address, &symbolDisplacement, symbol.get()) != FALSE;
+		const auto address              = reinterpret_cast<DWORD64>(frames[i]);
+		DWORD64    symbolDisplacement    = 0;
+		const bool symbolResolved        = SymFromAddr(process, address, &symbolDisplacement, symbol.get()) != FALSE;
 		IMAGEHLP_LINE64 line{};
-		line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+		line.SizeOfStruct    = sizeof(IMAGEHLP_LINE64);
 		DWORD lineDisplacement = 0;
 		if (SymGetLineFromAddr64(process, address, &lineDisplacement, &line) != FALSE && line.FileName != nullptr)
 		{
@@ -183,7 +238,7 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= 
 	for (size_t i = 0; i < addresses.size(); ++i)
 	{
 		value << std::right << std::setw(5) << "["
-		      << std::left << std::dec << std::setw(frames / 10 + 1) << (i)
+		      << std::left << std::dec << std::setw(count / 10 + 1) << (i)
 		      << std::left << std::setw(4) << "]"
 		      << std::left << std::setw(0) << "0x"
 		      << std::right << std::hex << std::setw(16) << std::setfill('0') << addresses[i]
@@ -194,33 +249,12 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= 
 		      << '\n';
 	}
 
-	m_value = value.str();
+	return value.str();
 #else
-	// storage array for stack trace address data
-	void* trace[MAX_FRAMES];
-
-	// retrieve current stack addresses
-	int frames = backtrace(trace, sizeof(trace) / sizeof(void*));
-
-	if (frames == 0)
-	{
-		m_value.append("<empty, possibly corrupt>\n");
-		return;
-	}
-
-	// Gate the expensive symbolization behind a first-seen-stack check when deduplication is requested (identical to the
-	// Windows branch): the raw addresses are captured, a repeat of the exact same stack is suppressed here and never
-	// symbolized again, and a distinct call path always traces in full.
-	if (deduplicateByStack && !firstTimeForStack(trace, static_cast<std::size_t>(frames)))
-	{
-		m_suppressed = true;
-		return;
-	}
-
-	// resolve addresses into strings containing
-	auto&& symbols = backtraceSymbols(trace, frames);
+	// resolve addresses into (filename, function-name) pairs
+	auto&& symbols = backtraceSymbols(frames, count);
 	if (symbols.empty())
-		return;
+		return {};
 
 	// get max filename length
 	size_t maxFilenameLength = 0;
@@ -234,9 +268,7 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= 
 	// set up a string stream to write to
 	std::ostringstream value{};
 
-	// iterate over the returned symbol lines. skip the first, it is the
-	// address of this function.
-	for (size_t i = 1 + ignore; i < symbols.size(); i++)
+	for (size_t i = 0; i < symbols.size(); i++)
 	{
 		auto& [filename, functionName] = symbols[i];
 
@@ -254,10 +286,10 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= 
 		if (demanglerStatus == 0 && ret)
 		{
 			value << std::right << std::setw(5) << "["
-			      << std::right << std::dec << std::setw(frames / 10 + 1) << (i - ignore)
+			      << std::right << std::dec << std::setw(count / 10 + 1) << (i)
 			      << std::left << std::setw(4) << "]"
 			      << std::left << std::setw(0) << "0x"
-			      << std::right << std::hex << std::setw(16) << std::setfill('0') << (unsigned long long) trace[i]
+			      << std::right << std::hex << std::setw(16) << std::setfill('0') << (unsigned long long) frames[i]
 			      << std::left << std::setw(0) << ": "
 			      << std::left << std::setw(filenameWidth) << std::setfill(' ') << filename
 			      << std::left << std::setw(0) << "| "
@@ -269,10 +301,10 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= 
 			// de-mangling failed, but there is a symbol name. Output function name as a C function with
 			// no arguments.
 			value << std::right << std::setw(5) << "["
-			      << std::right << std::dec << std::setw(frames / 10 + 1) << (i - ignore)
+			      << std::right << std::dec << std::setw(count / 10 + 1) << (i)
 			      << std::left << std::setw(4) << "]"
 			      << std::left << std::setw(0) << "0x"
-			      << std::right << std::hex << std::setw(16) << std::setfill('0') << (unsigned long long) trace[i]
+			      << std::right << std::hex << std::setw(16) << std::setfill('0') << (unsigned long long) frames[i]
 			      << std::left << std::setw(0) << ": "
 			      << std::left << std::setw(filenameWidth) << std::setfill(' ') << filename
 			      << std::left << std::setw(0) << "| "
@@ -283,10 +315,10 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= 
 		{
 			// No symbol name. Print the module instead
 			value << std::right << std::setw(5) << "["
-			      << std::right << std::dec << std::setw(frames / 10 + 1) << (i - ignore)
+			      << std::right << std::dec << std::setw(count / 10 + 1) << (i)
 			      << std::left << std::setw(4) << "]"
 			      << std::left << std::setw(0) << "0x"
-			      << std::right << std::hex << std::setw(16) << std::setfill('0') << (unsigned long long) trace[i]
+			      << std::right << std::hex << std::setw(16) << std::setfill('0') << (unsigned long long) frames[i]
 			      << std::left << std::setw(0) << ": "
 			      << std::left << std::setw(filenameWidth) << std::setfill(' ') << filename
 			      << std::left << std::setw(0) << "| "
@@ -297,8 +329,7 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= 
 		if (ret) std::free(ret);
 	}
 
-	// store values
-	m_value = value.str();
+	return value.str();
 #endif
 }
 

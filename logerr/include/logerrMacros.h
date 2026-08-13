@@ -50,6 +50,7 @@
 #include <cstring>
 #include <iostream>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
@@ -57,7 +58,23 @@
 
 #include <appinfo.h>
 #include <StackTrace.h>
+#include <asyncTraceLog.h>
 #include <logerrTypes.h>
+
+// Raw return-address capture for the deferred error footer. The capture is cheap (a handful of microseconds) and runs
+// on the logging thread; the tens-of-milliseconds symbol resolution is deferred to the async trace-log worker. The
+// platform capture primitive is isolated behind this header so its (heavy, on Windows) system header is included once.
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <execinfo.h>
+#endif
 
 //------------------------------
 //	GLOBALS
@@ -109,13 +126,35 @@ namespace logerr
 		StackTrace::resetDeduplication();
 	}
 
-	/// RAII error-log line: prints the [ts][app][ERROR][file:line func] prefix on construction, forwards << to std::cout,
-	/// and on destruction appends the FULL stack trace UNLESS the exact same call stack was already traced in this
-	/// process. Deduplication is by STACK, not by call site: a repeat of the identical stack is suppressed (message only,
-	/// no trace footer), but a DIFFERENT call path reaching the same LOGERR line always traces in full, so no distinct
-	/// stack is ever hidden. So every LOGERR carries its whole trace the first time each unique stack occurs, without a
+	/// Capture the current thread's raw return addresses (cheap, no symbolization), dropping the innermost frames that
+	/// belong to logerr itself so the first displayed frame is the caller of LOGERR. The addresses are symbolized later,
+	/// off the logging thread, by the async trace-log worker.
+	inline std::vector<void*> captureCallStack(unsigned int skipInnermost) noexcept
+	{
+		constexpr int      maxFrames = 256;
+		std::vector<void*> raw(maxFrames);
+#if defined(_WIN32)
+		const unsigned short captured = CaptureStackBackTrace(0, static_cast<DWORD>(maxFrames), raw.data(), nullptr);
+		raw.resize(captured);
+#else
+		const int captured = ::backtrace(raw.data(), maxFrames);
+		raw.resize(captured < 0 ? 0 : static_cast<std::size_t>(captured));
+#endif
+		if (skipInnermost < raw.size())
+			raw.erase(raw.begin(), raw.begin() + skipInnermost);
+		else
+			raw.clear();
+		return raw;
+	}
+
+	/// RAII error-log line: builds the [ts][app][ERROR][file:line func] prefix and buffers the streamed message, then on
+	/// destruction captures the raw return addresses (cheap) and hands the whole entry to the async trace-log worker,
+	/// which symbolizes off the logging thread and writes the message and its FULL stack-trace footer as one contiguous
+	/// unit. Deduplication is by STACK, not by call site: a repeat of the identical stack is written message-only (no
+	/// trace footer), but a DIFFERENT call path reaching the same LOGERR line always traces in full, so no distinct stack
+	/// is ever hidden. So every LOGERR carries its whole trace the first time each unique stack occurs, without a
 	/// trace-per-line flood on a churny site, and every existing `LOGERR << a << b << ENDL` call site keeps compiling
-	/// unchanged (the trailing ENDL is a harmless extra newline before the footer).
+	/// unchanged (the trailing ENDL is a harmless extra newline appended to the buffered message).
 	class TracingErrorLine
 	{
 	public:
@@ -125,33 +164,33 @@ namespace logerr
 		explicit TracingErrorLine(const char* file, const char* /*fileKey*/, std::uint32_t line, const char* function,
 		                          const std::string& tag = APPINFO::name())
 		{
-			std::cout << '[' << TimestampLite() << "] [" << tag << "] [ERROR]    [" << file << ':' << line
-			          << ' ' << function << "]  ";
+			m_prefix << '[' << TimestampLite() << "] [" << tag << "] [ERROR]    [" << file << ':' << line
+			         << ' ' << function << "]  ";
 		}
 		~TracingErrorLine()
 		{
-			// Deduplicate by stack: a first-seen stack yields content, an identical repeat yields a suppressed (empty)
-			// trace, and a distinct call path through the same line yields its own full trace. Only prepend the footer
-			// newline when there is a trace to print.
-			const ::StackTrace trace(2, /*deduplicateByStack*/ true);
-			if (!trace.suppressed())
-				std::cout << '\n' << static_cast<std::string>(trace);
-			std::cout << std::endl;
+			// Capture the raw return addresses on THIS (logging) thread and defer the expensive symbolization to the
+			// worker. Skip one innermost frame - this destructor - so the first displayed frame is the caller of LOGERR.
+			logerr::enqueueTracedError(m_prefix.str(), m_message.str(), captureCallStack(1), /*deduplicateByStack*/ true);
 		}
 		template<typename T>
 		TracingErrorLine& operator<<(const T& value)
 		{
-			std::cout << value;
+			m_message << value;
 			return *this;
 		}
 		// Stream manipulators (std::endl / std::flush / ENDL) are overloaded functions, not a const T&: forward them
-		// explicitly so an existing `LOGERR << ... << std::endl` keeps compiling. The trailing endl is harmless (the
-		// destructor's trace footer follows on the next line).
+		// explicitly so an existing `LOGERR << ... << std::endl` keeps compiling. The manipulator appends to the buffered
+		// message (the worker writes the trace footer after it).
 		TracingErrorLine& operator<<(std::ostream& (*manip)(std::ostream&))
 		{
-			std::cout << manip;
+			m_message << manip;
 			return *this;
 		}
+
+	private:
+		std::ostringstream m_prefix;     ///< the "[ts] [tag] [ERROR] [file:line fn]  " lead-in.
+		std::ostringstream m_message;    ///< the streamed message body.
 	};
 }    // namespace logerr
 

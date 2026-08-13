@@ -7,6 +7,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <StackTrace.h>
+#include <asyncTraceLog.h>
 #include <logerrMacros.h>
 #include <qappinfo.h>
 
@@ -47,6 +48,10 @@ void stackTraceSIGSEGVQt(int)
 	}
 
 	LOGINFO << QAPPINFO::name().toLocal8Bit().constData() << " terminated due to a fatal error (application crash). Exiting with code 1..." << std::endl;
+
+	// LOGERR is asynchronous: drain and stop the trace-log worker synchronously so the crash entry (logged above) is
+	// written before the process dies (before the optional dialog and the final exit).
+	logerr::flushTracedErrors();
 
 	// The crash is now fully recorded (logged above + written to the crash-dump file), so termination is safe with or
 	// without a dialog. Show the interactive dialog ONLY when a human can actually dismiss it: a MODAL dialog raised

@@ -1,5 +1,6 @@
 set(logerr_headers
     include/appinfo.h
+    include/asyncTraceLog.h
     include/concurrent_queue.h
     include/function_view.h
     include/logerr
@@ -14,6 +15,7 @@ set(logerr_headers
     include/timestampLite.h)
 
 set(logerr_sources
+    src/asyncTraceLog.cpp
     src/LogFileWriter.cpp
     src/LogStream.cpp
     src/sigtermHandler.cpp

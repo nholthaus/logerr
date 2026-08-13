@@ -6,6 +6,7 @@
 #include <StackTraceException.h>
 #include <StackTraceSIGSEGV.h>
 #include <appinfo.h>
+#include <asyncTraceLog.h>
 #include <concurrent_queue.h>
 #include <function_view.h>
 #include <logerrThread.h>
@@ -529,6 +530,10 @@ TEST_F(LogerrCoreFixture, ErrorLoggingAddsSourceContextAndOptionalTrace)
 	const int traceLine = __LINE__ + 1;
 	LOGERR_TRACE("traced diagnostic");
 
+	// LOGERR is asynchronous: drain the trace-log worker while the capture buffer is still installed so the entries are
+	// written into it before it is read.
+	logerr::flushTracedErrors();
+
 	std::cout.rdbuf(originalBuffer);
 	const std::string output = captured.str();
 	EXPECT_NE(output.find("[ERROR]"), std::string::npos);
@@ -672,6 +677,7 @@ TEST_F(LogerrCoreFixture, LogErrAlwaysCarriesAStackTraceOnAFreshStack)
 
 	LOGERR << "fresh failure" << ENDL;
 
+	logerr::flushTracedErrors();
 	const std::string output = capture.str();
 	EXPECT_NE(output.find("[ERROR]"), std::string::npos);
 	EXPECT_NE(output.find("fresh failure"), std::string::npos);
@@ -689,6 +695,7 @@ TEST_F(LogerrCoreFixture, LogErrDeduplicatesTheTracePerIdenticalStack)
 	for (int i = 0; i < 3; ++i)
 		LOGERR << "recurring failure " << i << ENDL;
 
+	logerr::flushTracedErrors();
 	const std::string output = capture.str();
 	EXPECT_EQ(occurrences(output, "recurring failure "), 3U) << "every hit logs its message line";
 	// Exactly one trace footer for three identical-stack repeats.
@@ -715,6 +722,7 @@ TEST_F(LogerrCoreFixture, DifferentCallPathsThroughTheSameLineEachTrace)
 	pathAlpha();   // -> sharedLogSite() -> LOGERR
 	pathBravo();   // -> sharedLogSite() -> LOGERR  (same line, different stack)
 
+	logerr::flushTracedErrors();
 	const std::string output = capture.str();
 	EXPECT_EQ(occurrences(output, "shared-site failure"), 2U) << "both paths log the message";
 	// Both distinct stacks trace: a trace footer (a hex frame) appears after the first message AND after the second.
@@ -743,12 +751,14 @@ TEST_F(LogerrCoreFixture, ResetTracedSitesReArmsTheTrace)
 		CoutCapture capture;
 		for (int i = 0; i < 2; ++i)
 			LOGERR << "reset probe" << ENDL;   // same stack: traces once, then deduplicated
+		logerr::flushTracedErrors();
 		beforeReset = capture.str();
 	}
 	logerr::resetTracedSites();
 	{
 		CoutCapture capture;
 		LOGERR << "reset probe again" << ENDL;   // after the reset the registry is empty: must trace
+		logerr::flushTracedErrors();
 		afterReset = capture.str();
 	}
 	EXPECT_NE(beforeReset.find("0x"), std::string::npos) << "the first hit traced";
@@ -764,6 +774,7 @@ TEST_F(LogerrCoreFixture, LogErrPreservesTheStreamedMessageAndManipulators)
 	LOGERR << "count=" << 42 << " ratio=" << 3.5 << " flag=" << true << std::endl;
 	LOGERR << "second" << ENDL;
 
+	logerr::flushTracedErrors();
 	const std::string output = capture.str();
 	EXPECT_NE(output.find("count=42 ratio=3.5 flag=1"), std::string::npos);
 	EXPECT_NE(output.find("second"), std::string::npos);
@@ -818,8 +829,34 @@ TEST_F(LogerrCoreFixture, TracingErrorLineAcceptsAModuleTagAndStillTraces)
 		    << "module-tagged failure" << std::endl;
 	}
 
+	logerr::flushTracedErrors();
 	const std::string output = capture.str();
 	EXPECT_NE(output.find("[MySubsystem]"), std::string::npos) << "the module tag replaces the app name";
 	EXPECT_NE(output.find("module-tagged failure"), std::string::npos);
 	EXPECT_NE(output.find("0x"), std::string::npos) << "a module-tagged line still carries the full trace";
+}
+
+TEST_F(LogerrCoreFixture, ErrorTraceIsWrittenByTheAsyncWorkerAndStaysContiguous)
+{
+	// The message and its stack-trace footer are symbolized and written by the background worker as ONE atomic unit, so
+	// they are always contiguous: after flushing the worker, the message is present, its trace footer (a hex frame) is
+	// present, and the trace follows the message with NO other [ERROR] line wedged between them.
+	logerr::resetTracedSites();
+	CoutCapture capture;
+
+	LOGERR << "async-worker contiguous failure" << ENDL;
+
+	// Drain the worker while the capture buffer is still installed; the synchronous drain guarantees the entry is written
+	// before the capture is read.
+	logerr::flushTracedErrors();
+	const std::string output = capture.str();
+
+	const std::size_t messagePos = output.find("async-worker contiguous failure");
+	ASSERT_NE(messagePos, std::string::npos) << "the message line was written";
+	const std::size_t tracePos = output.find("0x", messagePos);
+	ASSERT_NE(tracePos, std::string::npos) << "the trace footer follows the message";
+	// The footer belongs to THIS message: no other [ERROR] prefix appears between the message and its trace.
+	const std::size_t nextErrorPrefix = output.find("[ERROR]", messagePos);
+	EXPECT_TRUE(nextErrorPrefix == std::string::npos || nextErrorPrefix > tracePos)
+	    << "the message and its trace footer are one contiguous block";
 }

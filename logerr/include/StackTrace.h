@@ -95,6 +95,30 @@ public:
 	 */
 	static void resetDeduplication() noexcept;
 
+	/**
+	 * @brief		Symbolize a caller-provided array of raw return addresses into the formatted trace footer.
+	 * @details		Shares the exact per-frame symbolization and text formatting used by the constructor, so a
+	 *				caller that captured its own frames (the async trace-log worker) produces identical output
+	 *				without re-capturing. Serializes access to the process-global symbolizer (DbgHelp / BFD)
+	 *				internally, so it is safe to call from any thread.
+	 * @param[in]	frames	the raw return addresses to symbolize, in innermost-first order.
+	 * @param[in]	count	the number of addresses in @p frames.
+	 * @returns		The formatted, newline-terminated trace footer; empty when @p count is zero.
+	 */
+	[[nodiscard]] static std::string formatFrames(void* const* frames, int count);
+
+	/**
+	 * @brief		Whether the exact call stack in @p frames has already been traced in this process.
+	 * @details		Records the stack on first sight so an identical repeat returns false thereafter. The key is
+	 *				a hash of the raw return addresses, computed BEFORE any symbolization. Thread-safe. Used by
+	 *				the async trace-log worker to run the same deduplication gate the constructor applies, but on
+	 *				the worker thread against the caller-provided frames.
+	 * @param[in]	frames	the raw return addresses that identify the stack.
+	 * @param[in]	count	the number of addresses in @p frames.
+	 * @returns		true the first time this exact stack is seen; false on every identical repeat.
+	 */
+	[[nodiscard]] static bool firstTimeForStack(void* const* frames, int count);
+
 private:
 	static const size_t MAX_FRAMES = 256;    ///< Arbitrary.
 
