@@ -46,10 +46,13 @@
 //-------------------------
 
 #include <atomic>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 #include <mutex>
+#include <string>
 #include <thread>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -98,6 +101,74 @@ namespace logerr
 		const std::lock_guard<std::mutex> lock(g_exceptionMutex);
 		return std::exchange(g_exceptionPtr, nullptr);
 	}
+
+	/// De-dup registry for LOGERR's full-trace footer: each distinct call site (file + line) logs its stack trace ONCE,
+	/// then only the one-line message on repeats, so a churny error site (a reconnect blip) records the trace once
+	/// without spamming an identical trace every occurrence.
+	inline std::mutex                                                  g_tracedSitesMutex;
+	inline std::unordered_set<std::uint64_t>                           g_tracedSites;
+
+	/// A stable per-call-site key: the __FILE__ pointer (one interned literal per source file, identical across a file's
+	/// call sites) folded with __LINE__. Distinct sites in the same file get distinct keys (line differs); the same site
+	/// hit repeatedly gets the same key. Pointer identity is stable within a process, so no string hashing is needed.
+	inline std::uint64_t traceSiteKey(const char* fileKey, std::uint32_t line) noexcept
+	{
+		return (reinterpret_cast<std::uint64_t>(fileKey) << 20) ^ line;
+	}
+
+	/// True the FIRST time a given call site logs; false on every repeat. Records the site so the footer traces once.
+	inline bool firstTraceForSite(const char* fileKey, std::uint32_t line) noexcept
+	{
+		const std::lock_guard<std::mutex> lock(g_tracedSitesMutex);
+		return g_tracedSites.insert(traceSiteKey(fileKey, line)).second;
+	}
+
+	/// Forget every recorded trace site, so the NEXT hit of each LOGERR site traces again. For test isolation and for a
+	/// caller that wants a fresh full-trace baseline (e.g. at the start of a new run/session).
+	inline void resetTracedSites() noexcept
+	{
+		const std::lock_guard<std::mutex> lock(g_tracedSitesMutex);
+		g_tracedSites.clear();
+	}
+
+	/// RAII error-log line: prints the [ts][app][ERROR][file:line func] prefix on construction, forwards << to std::cout,
+	/// and on destruction appends the FULL stack trace the FIRST time this call site logs (deduped by firstTraceForSite),
+	/// then a newline. So every LOGERR carries the whole trace in the log, without a trace-per-line flood on a repeating
+	/// site, and every existing `LOGERR << a << b << ENDL` call site keeps compiling unchanged (the trailing ENDL is a
+	/// harmless extra newline before the footer).
+	class TracingErrorLine
+	{
+	public:
+		TracingErrorLine(const char* file, const char* fileKey, std::uint32_t line, const char* function)
+		    : m_fileKey(fileKey), m_line(line)
+		{
+			std::cout << '[' << TimestampLite() << "] [" << APPINFO::name() << "] [ERROR]    [" << file << ':' << line
+			          << ' ' << function << "]  ";
+		}
+		~TracingErrorLine()
+		{
+			if (firstTraceForSite(m_fileKey, m_line))
+				std::cout << '\n' << static_cast<std::string>(::StackTrace(2));
+			std::cout << std::endl;
+		}
+		template<typename T>
+		TracingErrorLine& operator<<(const T& value)
+		{
+			std::cout << value;
+			return *this;
+		}
+		// Stream manipulators (std::endl / std::flush / ENDL) are overloaded functions, not a const T&: forward them
+		// explicitly so an existing `LOGERR << ... << std::endl` keeps compiling. The trailing endl is harmless (the
+		// destructor's trace footer follows on the next line).
+		TracingErrorLine& operator<<(std::ostream& (*manip)(std::ostream&))
+		{
+			std::cout << manip;
+			return *this;
+		}
+	private:
+		const char*   m_fileKey;
+		std::uint32_t m_line;
+	};
 }    // namespace logerr
 
 //-------------------------
@@ -125,9 +196,11 @@ namespace logerr
 // Errors and warnings carry their source location automatically. Info/debug remain compact because they are expected
 // operational events rather than diagnostic paths.
 #ifndef LOGERR
-#define LOGERR                                                                                                           \
-	(std::cout << '[' << TimestampLite() << "] [" << APPINFO::name() << "] [ERROR]    [" << __FILENAME__ << ':'         \
-	           << __LINE__ << ' ' << LOGERR_FUNCTION << "]  ")
+// LOGERR is a temporary TracingErrorLine: it prints the [ts][app][ERROR][file:line func] prefix, forwards the streamed
+// message, and on end-of-statement appends the FULL stack trace the first time this call site logs (deduped, so a
+// repeating site records the trace once, not every time). __FILE__ doubles as the per-site de-dup key (a stable pointer
+// per source file) alongside __LINE__. Every existing `LOGERR << a << b << ENDL` compiles unchanged.
+#define LOGERR ::logerr::TracingErrorLine(__FILENAME__, __FILE__, static_cast<std::uint32_t>(__LINE__), LOGERR_FUNCTION)
 #endif
 #ifndef LOGWARNING
 #define LOGWARNING                                                                                                       \
