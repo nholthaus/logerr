@@ -347,17 +347,26 @@ static std::string formatFramesImpl(void* const* frames, int count)
 #ifdef WINDOWS
 // Windows: dbghelp can raise a STRUCTURED (SEH) access violation deep in its guts (a torn-down module list, a bad PDB),
 // which a C++ `catch` cannot catch under /EHsc. Run the impl behind __try/__except so such a fault degrades to a
-// placeholder instead of terminating the process. Kept in its own function because a function using __try/__except may
-// not also require C++ object unwinding.
-static std::string formatFramesSehGuarded(void* const* frames, int count) noexcept
+// placeholder instead of terminating the process.
+//
+// MSVC forbids __try/__except in a function that itself requires C++ object unwinding (error C2712). So the guarded
+// function holds NO unwindable local of its own: it takes a caller-owned std::string* and does the fill through a
+// separate helper (fillFramesInto) whose own unwinding lives in ITS frame, not the __try frame. The std::string is
+// constructed and destroyed entirely in the caller (formatFrames), outside any __try scope.
+static void fillFramesInto(std::string* out, void* const* frames, int count)
+{
+	*out = formatFramesImpl(frames, count);
+}
+
+static void formatFramesSehGuarded(std::string* out, void* const* frames, int count) noexcept
 {
 	__try
 	{
-		return formatFramesImpl(frames, count);
+		fillFramesInto(out, frames, count);
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER)
 	{
-		return "<stack trace unavailable: symbolizer fault>\n";
+		*out = "<stack trace unavailable: symbolizer fault>\n";
 	}
 }
 #endif
@@ -379,7 +388,9 @@ std::string StackTrace::formatFrames(void* const* frames, int count)
 	try
 	{
 #ifdef WINDOWS
-		return formatFramesSehGuarded(frames, count);
+		std::string out;
+		formatFramesSehGuarded(&out, frames, count);    // SEH-guarded; out is owned here, outside any __try scope
+		return out;
 #else
 		return formatFramesImpl(frames, count);
 #endif
