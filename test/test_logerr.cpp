@@ -683,10 +683,9 @@ namespace
 		return flags;
 	}
 
-	// Throw-then-catch a logerr::exception and log it through the SHARED caught-error path, from ONE call instruction
-	// (the loop in logCaughtExceptionSequence below) so every occurrence records the byte-identical throw-site stack.
-	// Kept out of line + non-tail (the volatile sink) so this is a real, stable frame the two occurrences share, exactly
-	// like captureSuppressed()'s pattern - the compiler-robust way to produce genuinely identical stacks.
+	// Throw-then-catch a logerr::exception and log it through the SHARED caught-error path (message-first + throw-site
+	// trace footer). Out of line + non-tail (the volatile sink) so it is a real frame. Used by the single-occurrence
+	// caught-error test.
 	LOGERR_TEST_NOINLINE void throwAndLogCaught(const char* message)
 	{
 		try
@@ -700,12 +699,22 @@ namespace
 		g_pathSink += 1;
 	}
 
-	// Drive throwAndLogCaught() `count` times from ONE call instruction (this loop), so each caught exception is thrown
-	// from the identical stack: the first logs its throw-site trace footer, every identical repeat is message-only.
-	LOGERR_TEST_NOINLINE void logCaughtExceptionSequence(const char* message, int count)
+	// Throw-then-catch a logerr::exception and RETURN the caught object (a copy), so a test can log the SAME object
+	// repeatedly. An exception's frames() are fixed at construction, so logging one captured object N times deduplicates
+	// on a byte-identical frame array on every toolchain - unlike N separate throws, whose stacks the C++ exception ABI
+	// may not reproduce identically. StackTraceException is copyable (it holds a std::string message + a StackTrace).
+	LOGERR_TEST_NOINLINE StackTraceException makeCaughtException(const char* message)
 	{
-		for (int i = 0; i < count; ++i)
-			throwAndLogCaught(message);
+		try
+		{
+			ERR(message);
+		}
+		catch (const StackTraceException& e)
+		{
+			g_pathSink += 1;
+			return e;
+		}
+		return StackTraceException(message, __FILENAME__, LOGERR_FUNCTION, __LINE__);    // unreachable; ERR always throws
 	}
 
 	// A logerr::exception thrown from an out-of-line frame so its captured throw-site stack resolves to a real function.
@@ -926,12 +935,20 @@ TEST_F(LogerrCoreFixture, CaughtExceptionLogsMessageFirstThenItsThrowSiteTraceFo
 
 TEST_F(LogerrCoreFixture, CaughtExceptionDeduplicatesByThrowSiteStack)
 {
-	// Logging the SAME throw-site stack twice: the first carries a footer, the identical repeat is message-only - the
-	// exact deduplication LOGERR applies, but on the throw-site stack the exception captured.
+	// Logging the SAME throw-site stack repeatedly: the first carries a footer, each identical repeat is message-only -
+	// the exact deduplication LOGERR applies, but on the throw-site stack the exception captured.
+	//
+	// Capture ONE exception and log THAT SAME object three times, rather than throwing three times: an exception's
+	// frames() are fixed at construction, so all three logCaughtError() calls dedup on a byte-identical frame array -
+	// guaranteed on every toolchain. (Two real throws are NOT guaranteed to produce byte-identical stacks: the C++
+	// exception ABI / unwinder can vary a frame across throws on some compilers, which made a throw-thrice version flaky.)
 	logerr::resetTracedSites();
 	CoutCapture capture;
 
-	logCaughtExceptionSequence("recurring caught failure", 3);
+	const StackTraceException caught = makeCaughtException("recurring caught failure");
+	logerr::logCaughtError(caught);
+	logerr::logCaughtError(caught);
+	logerr::logCaughtError(caught);
 
 	logerr::flushTracedErrors();
 	const std::string output = capture.str();
