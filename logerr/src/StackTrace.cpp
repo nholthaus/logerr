@@ -38,8 +38,12 @@ namespace
 	// source line - folds to a different key and therefore always traces in full. This is what lets a churny error site
 	// reached repeatedly by one path pay the expensive symbol resolution once, without ever collapsing two genuinely
 	// different stacks into one.
-	std::mutex                        g_tracedStacksMutex;
-	std::unordered_set<std::uint64_t> g_tracedStacks;
+	// INTENTIONALLY LEAKED (never destroyed): symbolization / deduplication can run on a background thread (the async
+	// trace-log worker) or during late exit-time teardown, after ordinary statics would have been destroyed. A destroyed
+	// mutex/set touched by a still-running symbolizer is a use-after-free. Held as never-freed process-lifetime objects
+	// they are valid for the whole run and cannot be used-after-free; the leak is one mutex + one set.
+	std::mutex&                        g_tracedStacksMutex = *new std::mutex;
+	std::unordered_set<std::uint64_t>& g_tracedStacks      = *new std::unordered_set<std::uint64_t>;
 
 	// FNV-1a over the raw frame pointers. Cheap (a handful of nanoseconds over the already-captured array) and stable
 	// within a process run, so identical stacks hash identically.
@@ -154,13 +158,20 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= 
 ///				state and are not safe to call concurrently, so access is serialized here; symbolization is otherwise
 ///				identical to the historical per-frame formatting on both platforms.
 //--------------------------------------------------------------------------------------------------
-std::string StackTrace::formatFrames(void* const* frames, int count)
+// The actual symbolization, per platform. Wrapped by StackTrace::formatFrames (below), which is the self-defending
+// entry point: symbolization runs in the worst conditions (a crashing or exiting process, arbitrary threads, torn-down
+// module state), and a crash-diagnostic library must NEVER be the thing that crashes the process it is diagnosing. So a
+// fault here degrades to a placeholder, never a secondary crash.
+static std::string formatFramesImpl(void* const* frames, int count)
 {
 	if (count <= 0)
 		return {};
 
 	// Both DbgHelp and the BFD-backed symbolizer maintain process-global state and are not safe to call concurrently.
-	static std::mutex     stackTraceMutex;
+	// INTENTIONALLY LEAKED (never destroyed): the async trace-log worker (and late exit-time traces) can enter here after
+	// a function-local static mutex would have been destroyed - locking a destroyed mutex is undefined. A never-freed
+	// process-lifetime mutex is valid for the whole run.
+	static std::mutex&    stackTraceMutex = *new std::mutex;
 	const std::lock_guard stackTraceLock(stackTraceMutex);
 #ifdef WINDOWS
 	const auto process = GetCurrentProcess();
@@ -331,6 +342,52 @@ std::string StackTrace::formatFrames(void* const* frames, int count)
 
 	return value.str();
 #endif
+}
+
+#ifdef WINDOWS
+// Windows: dbghelp can raise a STRUCTURED (SEH) access violation deep in its guts (a torn-down module list, a bad PDB),
+// which a C++ `catch` cannot catch under /EHsc. Run the impl behind __try/__except so such a fault degrades to a
+// placeholder instead of terminating the process. Kept in its own function because a function using __try/__except may
+// not also require C++ object unwinding.
+static std::string formatFramesSehGuarded(void* const* frames, int count) noexcept
+{
+	__try
+	{
+		return formatFramesImpl(frames, count);
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER)
+	{
+		return "<stack trace unavailable: symbolizer fault>\n";
+	}
+}
+#endif
+
+//--------------------------------------------------------------------------------------------------
+//	formatFrames ( public, static )
+//--------------------------------------------------------------------------------------------------
+/// @brief		Self-defending symbolization entry point: format @p frames into a trace string, and NEVER crash doing it.
+/// @param[in]	frames	the raw return addresses to symbolize.
+/// @param[in]	count	the number of addresses.
+/// @return		the formatted trace, or a "<stack trace unavailable ...>" placeholder if symbolization itself faulted.
+/// @details	A crash-diagnostic library must never be the thing that crashes the process it is diagnosing. Symbolization
+///				runs in the worst conditions (a crashing/exiting process, arbitrary threads, torn-down module/PDB state);
+///				any C++ exception is caught here, and on Windows a structured (SEH) fault is caught too, degrading to a
+///				placeholder rather than a secondary crash.
+//--------------------------------------------------------------------------------------------------
+std::string StackTrace::formatFrames(void* const* frames, int count)
+{
+	try
+	{
+#ifdef WINDOWS
+		return formatFramesSehGuarded(frames, count);
+#else
+		return formatFramesImpl(frames, count);
+#endif
+	}
+	catch (...)
+	{
+		return "<stack trace unavailable: symbolizer error>\n";
+	}
 }
 
 //--------------------------------------------------------------------------------------------------

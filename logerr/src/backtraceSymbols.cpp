@@ -183,8 +183,15 @@ struct OpenModule
 // loaded module) held for the lifetime of a diagnostic facility, and freeing them would only re-incur the cost.
 const OpenModule& openModuleCached(const char* fileName)
 {
-	static std::mutex                    cacheMutex;
-	static std::map<std::string, OpenModule> cache;
+	// The cache and its mutex are INTENTIONALLY LEAKED (never destroyed): a stack trace can be symbolized on a
+	// background thread (the async trace-log worker) or on any thread during late/exit-time teardown, after
+	// function-local statics would already have run their destructors. A destroyed std::map/std::mutex touched by a
+	// still-running symbolizer is a use-after-free (observed: a SIGSEGV in _Rb_tree::find on a torn-down cache). Held as
+	// never-freed process-lifetime objects, they are valid for the entire program run and cannot be used-after-free; the
+	// leak is bounded (one map, one mutex) and is a diagnostic facility, the same rationale under which the cached BFD
+	// handles are never bfd_close'd.
+	static std::mutex&                        cacheMutex = *new std::mutex;
+	static std::map<std::string, OpenModule>& cache      = *new std::map<std::string, OpenModule>;
 
 	const std::lock_guard<std::mutex> lock(cacheMutex);
 

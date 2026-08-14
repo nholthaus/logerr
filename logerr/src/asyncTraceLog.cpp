@@ -42,6 +42,10 @@
 #include <utility>
 #include <vector>
 
+#ifndef _WIN32
+#include <pthread.h>
+#endif
+
 namespace
 {
 	// One deferred error entry: the already-formatted lead-in, the streamed message body, the raw return addresses to
@@ -75,7 +79,13 @@ namespace
 		if (firstSeen)
 			footer = StackTrace::formatFrames(entry.frames.data(), static_cast<int>(entry.frames.size()));
 
-		static std::mutex                 outputMutex;
+		// INTENTIONALLY LEAKED (never destroyed): writeEntry runs on the background worker AND, once teardown has begun
+		// (g_shuttingDown), on the synchronous fallback path in enqueueTracedError - a LOGERR emitted during static
+		// destruction. A function-local static mutex would already have run its destructor by then, and locking a
+		// destroyed mutex is undefined (the same teardown use-after-free class as the symbolizer statics). Held as a
+		// never-freed process-lifetime object it is valid for the whole run and cannot be used-after-free; the leak is
+		// one mutex.
+		static std::mutex&                outputMutex = *new std::mutex;
 		const std::lock_guard<std::mutex> lock(outputMutex);
 		std::cout << entry.prefix << entry.message;
 		if (!footer.empty())
@@ -96,27 +106,51 @@ namespace
 		//----------------------------------------------------------------------------------------------------------------------
 		/// @brief		Start the background trace-log worker.
 		/// @details	The worker blocks on the queue and drains it until its stop_token is requested and the queue is
-		///				empty, symbolizing and writing each entry.
+		///				empty, symbolizing and writing each entry. The queue, its synchronization primitives, and the thread
+		///				live behind a heap-owned Guts so a forked child can DISOWN them (abandon()) rather than destroy them.
 		//----------------------------------------------------------------------------------------------------------------------
 		TraceLogWorker()
-		    : m_thread([this](std::stop_token stop) { run(std::move(stop)); })
+		    : m_guts(std::make_unique<Guts>())
 		{
+			m_guts->thread = logerr::thread([guts = m_guts.get()](std::stop_token stop) { run(guts, std::move(stop)); });
 		}
 
 		//----------------------------------------------------------------------------------------------------------------------
 		//      FUNCTION: ~TraceLogWorker [public]
 		//----------------------------------------------------------------------------------------------------------------------
-		/// @brief		Stop and join the worker, draining every remaining entry first.
+		/// @brief		Stop and join the worker, draining every remaining entry first, then destroy its queue/primitives.
+		/// @details	After the join no thread waits on the queue's condition variable, so destroying it is clean. In a
+		///				forked child abandon() has already released m_guts, so this leaks the (thread-less, phantom-waiter)
+		///				primitives instead of hanging in pthread_cond_destroy on a waiter that does not exist in the child.
 		//----------------------------------------------------------------------------------------------------------------------
 		~TraceLogWorker()
 		{
-			m_thread.request_stop();
-			if (m_thread.joinable())
-				m_thread.join();
+			if (!m_guts)
+				return;    // a forked child disowned the guts; nothing to join, nothing safe to destroy here
+			m_guts->thread.request_stop();
+			if (m_guts->thread.joinable())
+				m_guts->thread.join();
 		}
 
 		TraceLogWorker(const TraceLogWorker&)            = delete;
 		TraceLogWorker& operator=(const TraceLogWorker&) = delete;
+
+		//----------------------------------------------------------------------------------------------------------------------
+		//      FUNCTION: abandon [public]
+		//----------------------------------------------------------------------------------------------------------------------
+		/// @brief		Disown the worker's thread, queue, and synchronization primitives, for a forked child.
+		/// @details	fork() duplicates only the calling thread, so the child inherits the worker's thread HANDLE (for a
+		///				thread that is not running there) and its condition variable with a waiter count frozen from the
+		///				parent (a waiter that also does not exist in the child). At the child's std::exit, ~TraceLogWorker
+		///				would then JOIN the absent thread AND ~concurrent_queue would call pthread_cond_destroy on a CV with a
+		///				phantom waiter - both hang forever. Releasing (leaking) the heap-owned Guts makes ~TraceLogWorker a
+		///				no-op: the child, already diverted to the synchronous path, never touches them, and it is about to
+		///				exit anyway. Called only from the pthread_atfork child handler; never in the parent.
+		//----------------------------------------------------------------------------------------------------------------------
+		void abandon() noexcept
+		{
+			static_cast<void>(m_guts.release());
+		}
 
 		//----------------------------------------------------------------------------------------------------------------------
 		//      FUNCTION: enqueue [public]
@@ -124,7 +158,7 @@ namespace
 		/// @brief		Hand a deferred error entry to the worker.
 		/// @param[in]	entry	the entry to symbolize and write off-thread.
 		//----------------------------------------------------------------------------------------------------------------------
-		void enqueue(TracedError entry) { m_queue.push(std::move(entry)); }
+		void enqueue(TracedError entry) { m_guts->queue.push(std::move(entry)); }
 
 		//----------------------------------------------------------------------------------------------------------------------
 		//      FUNCTION: flush [public]
@@ -139,27 +173,38 @@ namespace
 			std::mutex              barrierMutex;
 			std::condition_variable barrierDone;
 			bool                    done = false;
-			m_queue.push(TracedError{"", "", {}, false, [&]
-			                         {
-				                         const std::lock_guard<std::mutex> lock(barrierMutex);
-				                         done = true;
-				                         barrierDone.notify_one();
-			                         }});
+			m_guts->queue.push(TracedError{"", "", {}, false, [&]
+			                               {
+				                               const std::lock_guard<std::mutex> lock(barrierMutex);
+				                               done = true;
+				                               barrierDone.notify_one();
+			                               }});
 			std::unique_lock<std::mutex> lock(barrierMutex);
 			barrierDone.wait(lock, [&] { return done; });
 		}
 
 	private:
+		// The worker's queue, its synchronization primitives, and its thread. Heap-owned so a forked child can DISOWN the
+		// whole set (abandon()) instead of destroying it - destroying an inherited condition variable whose waiter lives
+		// only in the parent hangs in pthread_cond_destroy.
+		struct Guts
+		{
+			concurrent_queue<TracedError> queue;
+			logerr::thread                thread;
+		};
+
 		//----------------------------------------------------------------------------------------------------------------------
-		//      FUNCTION: run [private]
+		//      FUNCTION: run [private, static]
 		//----------------------------------------------------------------------------------------------------------------------
 		/// @brief		The worker body: drain, symbolize, and write each entry until stopped and empty.
+		/// @param[in]	guts	the heap-owned queue/primitives the worker drains; outlives the loop (leaked in a forked
+		///						child, joined-then-destroyed in the parent).
 		/// @param[in]	stop	the worker's stop token; requesting it drains the remaining queue then exits the loop.
 		//----------------------------------------------------------------------------------------------------------------------
-		void run(std::stop_token stop)
+		static void run(Guts* guts, std::stop_token stop)
 		{
 			TracedError entry;
-			while (m_queue.wait_pop(entry, stop))
+			while (guts->queue.wait_pop(entry, stop))
 			{
 				if (entry.barrier)
 					entry.barrier();    // a flush() barrier: signal the waiter, write nothing
@@ -168,8 +213,7 @@ namespace
 			}
 		}
 
-		concurrent_queue<TracedError> m_queue;
-		logerr::thread                m_thread;
+		std::unique_ptr<Guts> m_guts;
 	};
 
 	// True once the worker singleton has begun (or finished) destruction at process exit. After this point a LOGERR must
@@ -186,6 +230,31 @@ namespace
 		~ShutdownGuard() { g_shuttingDown.store(true); }
 	};
 
+	// The live worker singleton, published for the fork child-handler to reach. Set once when the worker is constructed;
+	// never cleared (the child handler only reads it, and the parent never needs it nulled).
+	std::atomic<TraceLogWorker*> g_workerInstance{nullptr};
+
+#ifndef _WIN32
+	// fork() duplicates ONLY the calling thread, so the background worker thread does NOT exist in the child, even though
+	// the child inherits the worker object - a joinable thread HANDLE for the absent thread, and a queue condition
+	// variable whose waiter count is frozen from the parent (the waiter, the worker thread, is not there either). Three
+	// things would then hang the child: an enqueue/flush handing off to / waiting on the absent thread; the child's
+	// std::exit running ~TraceLogWorker, which JOINS that absent thread; and ~concurrent_queue calling
+	// pthread_cond_destroy on a CV with a phantom waiter. This is the real path a consumer hits - a crash handler that
+	// runs after fork(), or a death test (EXPECT_EXIT/ASSERT_DEATH) that forks with the worker already spawned, then
+	// calls flushTracedErrors() or exits and never returns. The child handler fixes all three: flip g_shuttingDown so
+	// every trace path takes the SYNCHRONOUS writeEntry (correct - the child has one thread and no worker to hand off
+	// to, the same reasoning as the exit-time synchronous fallback), and abandon() disowns the heap-owned thread + queue
+	// so ~TraceLogWorker neither joins the absent thread nor destroys the phantom-waiter CV. The parent is untouched.
+	// Registered once with pthread_atfork when the worker is first constructed.
+	void divertToSynchronousInForkedChild() noexcept
+	{
+		g_shuttingDown.store(true);
+		if (TraceLogWorker* const instance = g_workerInstance.load())
+			instance->abandon();
+	}
+#endif
+
 	//----------------------------------------------------------------------------------------------------------------------
 	//      FUNCTION: worker [static]
 	//----------------------------------------------------------------------------------------------------------------------
@@ -199,11 +268,24 @@ namespace
 	//----------------------------------------------------------------------------------------------------------------------
 	TraceLogWorker& worker()
 	{
+#ifndef _WIN32
+		// Register the fork child-handler exactly once, before the worker thread exists, so a fork() after this point
+		// leaves the child on the synchronous path instead of blocking on the absent worker thread.
+		static const int forkHandlerRegistered = pthread_atfork(nullptr, nullptr, divertToSynchronousInForkedChild);
+		static_cast<void>(forkHandlerRegistered);
+#endif
 		static TraceLogWorker instance;
-		static ShutdownGuard  guard;    // constructed after instance -> destroyed before it: sets the flag, then worker joins
+		g_workerInstance.store(&instance);    // publish for the fork child-handler; set once, after construction
+		static ShutdownGuard guard;           // constructed after instance -> destroyed before it: sets the flag, then worker joins
 		return instance;
 	}
 
+	// Serializes the worker()-touching paths (enqueue / flush) against each other. NOT leaked: every code path that
+	// locks it is gated behind g_shuttingDown, and the ShutdownGuard flips g_shuttingDown true BEFORE this
+	// namespace-scope object is destroyed (the guard is a function-local static constructed lazily on first use, hence
+	// after this object, hence destroyed before it). So by the time exit-time destruction reaches g_workerMutex, no
+	// caller can still take the asynchronous path that locks it - they all divert to the synchronous writeEntry. It can
+	// therefore never be locked after its own destruction.
 	std::mutex g_workerMutex;
 }    // namespace
 

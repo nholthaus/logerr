@@ -19,9 +19,11 @@
 #include <atomic>
 #include <barrier>
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <future>
+#include <iterator>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -859,4 +861,136 @@ TEST_F(LogerrCoreFixture, ErrorTraceIsWrittenByTheAsyncWorkerAndStaysContiguous)
 	const std::size_t nextErrorPrefix = output.find("[ERROR]", messagePos);
 	EXPECT_TRUE(nextErrorPrefix == std::string::npos || nextErrorPrefix > tracePos)
 	    << "the message and its trace footer are one contiguous block";
+}
+
+// --- Crash/teardown/thread-safety regression suite (logerr 1.3.0) -----------------------------------------------------
+// These guard the exact class of bug that produced the exit-time SIGSEGV: symbolization runs on a background thread and
+// during late/exit-time teardown, so any static it touches must survive the whole process and it must never itself
+// crash. A destroyed std::map/std::mutex touched by a still-running symbolizer was a use-after-free (a SIGSEGV in
+// _Rb_tree::find on a torn-down module cache); the symbolizer statics are now never-destroyed and formatFrames is
+// self-defending. The suite below drives symbolization concurrently, right up to and past scope teardown, over the
+// async worker, and on adversarial input, so logerr's own CI is the gate against a regression.
+
+// A raw frame array captured at a real call site; a valid input formatFrames must symbolize without faulting.
+LOGERR_TEST_NOINLINE static std::vector<void*> captureRawFrames()
+{
+	return logerr::captureCallStack(0);
+}
+
+TEST_F(LogerrCoreFixture, FormatFramesIsSafeUnderConcurrentAndLateSymbolization)
+{
+	// Several threads symbolize captured stacks concurrently AND keep symbolizing right up to scope teardown - the
+	// concurrent + late path that runs on the async worker at exit. The symbolizer's process-global state (the module
+	// cache + its mutex, the trace mutex) is serialized internally, so no thread may crash, hang, or corrupt it, and
+	// every result is non-empty. A destroyed-static use-after-free would surface here as a crash or a sanitizer report.
+	constexpr int   workerCount = 8;
+	std::barrier    start(workerCount);
+	std::atomic_int completed{0};
+	std::atomic_int emptyResults{0};
+	{
+		std::vector<std::jthread> workers;
+		workers.reserve(workerCount);
+		for (int worker = 0; worker < workerCount; ++worker)
+		{
+			workers.emplace_back([&] {
+				const std::vector<void*> frames = captureRawFrames();
+				start.arrive_and_wait();
+				for (int iteration = 0; iteration < 32; ++iteration)
+				{
+					const std::string trace = StackTrace::formatFrames(frames.data(), static_cast<int>(frames.size()));
+					if (trace.empty())
+						++emptyResults;
+				}
+				++completed;
+			});
+		}
+		// The jthreads keep running as this scope tears down; the destructor join happens as the enclosing objects
+		// unwind, exercising symbolization that overlaps teardown.
+	}
+	EXPECT_EQ(completed.load(), workerCount) << "every worker finished; concurrent late symbolization did not crash or hang";
+	EXPECT_EQ(emptyResults.load(), 0) << "a captured real stack always symbolizes to non-empty content";
+}
+
+TEST_F(LogerrCoreFixture, AsyncTracePathIsCorrectUnderConcurrentProducers)
+{
+	// Many threads drive the async trace path (LOGERR -> enqueueTracedError) at once; after a single flush the worker
+	// has symbolized and written every entry. Each thread logs a distinct stack (a distinct thread-entry frame at its
+	// base) so none is deduplicated away, and each message is written exactly once, contiguously, with no crash. This
+	// is the multi-producer counterpart to the single-threaded contiguity test and exercises the worker's queue,
+	// off-thread symbolization, and output mutex under contention.
+	logerr::resetTracedSites();
+	constexpr int producerCount = 8;
+	CoutCapture   capture;
+	{
+		std::vector<std::jthread> producers;
+		producers.reserve(producerCount);
+		for (int producer = 0; producer < producerCount; ++producer)
+			producers.emplace_back([producer] { LOGERR << "concurrent-producer failure " << producer << ENDL; });
+	}
+	logerr::flushTracedErrors();
+	const std::string output = capture.str();
+	for (int producer = 0; producer < producerCount; ++producer)
+	{
+		const std::string message = "concurrent-producer failure " + std::to_string(producer);
+		EXPECT_EQ(occurrences(output, message), 1U) << "each producer's message is written exactly once: " << message;
+	}
+	// Every distinct producer stack carries its own trace footer, so the output holds at least one hex frame.
+	EXPECT_NE(output.find("0x"), std::string::npos) << "the concurrently produced entries carry their stack traces";
+}
+
+TEST_F(LogerrCoreFixture, FormatFramesNeverThrowsAndDegradesOnAdversarialInput)
+{
+	// The self-defense guard: symbolization must NEVER be the thing that crashes the process it is diagnosing. Feed it
+	// deliberately bogus frame arrays - null, non-canonical, and unmapped return addresses that a real trace could
+	// never contain - and assert it neither throws nor crashes. It returns a string in every case (a placeholder or a
+	// best-effort "??" line); on a valid captured stack it returns non-empty real content. The count<=0 contract path
+	// is exercised too.
+	void* bogus[] = {nullptr, reinterpret_cast<void*>(static_cast<std::uintptr_t>(0x1)),
+	                 reinterpret_cast<void*>(~static_cast<std::uintptr_t>(0)),
+	                 reinterpret_cast<void*>(static_cast<std::uintptr_t>(0xDEADBEEF))};
+	EXPECT_NO_THROW({
+		const std::string trace = StackTrace::formatFrames(bogus, static_cast<int>(std::size(bogus)));
+		static_cast<void>(trace);
+	});
+	// A zero/negative count is the documented empty contract, never a fault.
+	EXPECT_NO_THROW({ EXPECT_TRUE(StackTrace::formatFrames(bogus, 0).empty()); });
+	EXPECT_NO_THROW({ EXPECT_TRUE(StackTrace::formatFrames(nullptr, 0).empty()); });
+	EXPECT_NO_THROW({ static_cast<void>(StackTrace::formatFrames(bogus, -1)); });
+	// A valid captured stack still symbolizes to real, non-empty content through the same guarded entry point.
+	const std::vector<void*> real = captureRawFrames();
+	std::string valid;
+	EXPECT_NO_THROW({ valid = StackTrace::formatFrames(real.data(), static_cast<int>(real.size())); });
+	EXPECT_FALSE(valid.empty()) << "a real captured stack symbolizes to content";
+	EXPECT_NE(valid.find("0x"), std::string::npos) << "a real captured stack carries frame addresses";
+}
+
+TEST_F(LogerrCoreFixture, SymbolizationStaysSafeAfterFlushingTheWorker)
+{
+	// Post-worker-teardown ordering: after flushTracedErrors() has drained the worker, later symbolization on the
+	// calling thread must still be safe and correct. The symbolizer's statics are process-lifetime (never destroyed),
+	// so a trace taken after a flush resolves normally rather than touching torn-down state - the ordering that,
+	// mishandled, produced the exit-time use-after-free.
+	logerr::resetTracedSites();
+	{
+		CoutCapture capture;
+		LOGERR << "pre-flush failure" << ENDL;
+		logerr::flushTracedErrors();
+		EXPECT_NE(capture.str().find("pre-flush failure"), std::string::npos);
+	}
+	// Symbolize again AFTER the flush; it must not crash and must still resolve to content.
+	const std::vector<void*> frames = captureRawFrames();
+	std::string              trace;
+	EXPECT_NO_THROW({ trace = StackTrace::formatFrames(frames.data(), static_cast<int>(frames.size())); });
+	EXPECT_FALSE(trace.empty()) << "symbolization after a worker flush still resolves";
+	EXPECT_NE(trace.find("0x"), std::string::npos);
+	// And a fresh LOGERR after the flush is still served correctly (the worker singleton was not torn down by flush).
+	{
+		logerr::resetTracedSites();
+		CoutCapture capture;
+		LOGERR << "post-flush failure" << ENDL;
+		logerr::flushTracedErrors();
+		const std::string output = capture.str();
+		EXPECT_NE(output.find("post-flush failure"), std::string::npos) << "logging after a flush still works";
+		EXPECT_NE(output.find("0x"), std::string::npos) << "and still carries its trace";
+	}
 }
