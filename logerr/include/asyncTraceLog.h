@@ -56,6 +56,17 @@ namespace logerr
 	///									(no trace footer); a distinct stack always gets its full trace.
 	void enqueueTracedError(std::string prefix, std::string message, std::vector<void*> frames, bool deduplicateByStack);
 
+	/// @brief		Enqueue an error whose trace footer is ALREADY formatted, bypassing local frame capture/symbolization.
+	/// @details	For an error that occurred on ANOTHER host (a remote/buoy ship): the caller passes the origin
+	///				diagnostic already rendered as a footer (resolved command, exit code, captured stderr, the origin
+	///				host's own stack), and the worker writes it verbatim beneath the message. The local return addresses
+	///				are meaningless for a remote origin, so nothing is symbolized here. No deduplication parameter - a
+	///				relayed footer is not a local stack, and the on-disk file writer collapses a repeated footer anyway.
+	/// @param[in]	prefix	the already-formatted "[ts] [tag] [ERROR]    " lead-in.
+	/// @param[in]	message	the streamed message body for this error line.
+	/// @param[in]	footer	the pre-built origin-diagnostic footer, written verbatim.
+	void enqueueTracedError(std::string prefix, std::string message, std::string footer);
+
 	/// @brief		Log a caught StackTraceException with the same message-first, deduped-trace-footer contract as LOGERR.
 	/// @details	The single entry point for a caught/relayed logerr::exception that ALREADY captured its throw-site
 	///				stack. It builds the identical "[ts] [tag] [ERROR]    " lead-in TracingErrorLine builds (no source

@@ -765,6 +765,27 @@ TEST_F(LogerrCoreFixture, LogErrAlwaysCarriesAStackTraceOnAFreshStack)
 	EXPECT_NE(output.find("0x"), std::string::npos) << "a fresh stack must carry the full stack trace";
 }
 
+TEST_F(LogerrCoreFixture, EnqueueTracedErrorWritesAnExternalFooterVerbatim)
+{
+	// The origin-diagnostic path: an error that occurred on ANOTHER host supplies its footer ALREADY formatted, and the
+	// worker must write it verbatim beneath the message - never symbolize the local stack. The footer text (a buoy's
+	// resolved command, exit, stderr, and its own frames) appears exactly as given, and no local-frame symbolization
+	// (no "??:0" from formatFrames of empty frames) leaks in.
+	CoutCapture capture;
+	const std::string footer =
+	    "  origin: str-lin-7381\n"
+	    "  ran: /opt/helen-buoy/bin/definitely-not-here (exit -1)\n"
+	    "    [0] 0x00000000deadbeef: buoy doLaunch";
+	logerr::enqueueTracedError("[ts] [ship] [ERROR]    ", "executable not found on the buoy host", footer);
+	logerr::flushTracedErrors();
+	const std::string output = capture.str();
+	EXPECT_NE(output.find("executable not found on the buoy host"), std::string::npos) << "the message is written";
+	EXPECT_NE(output.find("origin: str-lin-7381"), std::string::npos) << "the external footer is written verbatim";
+	EXPECT_NE(output.find("buoy doLaunch"), std::string::npos) << "the external frame line is preserved";
+	// The message and its footer are one contiguous record: the footer follows the message.
+	EXPECT_LT(output.find("executable not found on the buoy host"), output.find("origin: str-lin-7381"));
+}
+
 TEST_F(LogerrCoreFixture, LogErrEmitsTheFullTraceForEveryOccurrenceInTheStream)
 {
 	logerr::resetTracedSites();

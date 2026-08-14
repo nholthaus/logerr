@@ -174,11 +174,29 @@ namespace logerr
 		}
 		~TracingErrorLine()
 		{
-			// Capture the raw return addresses on THIS (logging) thread and defer the expensive symbolization to the
-			// worker. Skip the two innermost frames - captureCallStack itself and this destructor - so the FIRST displayed
-			// trace frame (#0) is the LOGERR call site, not a logerr-internal frame. Since the location no longer appears
-			// on the message line, frame 0 IS the locator; it must be the user's site.
-			logerr::enqueueTracedError(m_prefix.str(), m_message.str(), captureCallStack(2), /*deduplicateByStack*/ true);
+			// When the caller supplied an EXTERNAL footer (an origin diagnostic relayed from another host - e.g. a remote
+			// ship's failure on the buoy), write the message + that footer verbatim; the local stack is meaningless for an
+			// error that occurred elsewhere. Otherwise capture the raw return addresses on THIS (logging) thread and defer
+			// the expensive symbolization to the worker. Skip the two innermost frames - captureCallStack itself and this
+			// destructor - so the FIRST displayed trace frame (#0) is the LOGERR call site, not a logerr-internal frame.
+			// Since the location no longer appears on the message line, frame 0 IS the locator; it must be the user's site.
+			if (m_hasExternalFooter)
+				logerr::enqueueTracedError(m_prefix.str(), m_message.str(), std::move(m_externalFooter));
+			else
+				logerr::enqueueTracedError(m_prefix.str(), m_message.str(), captureCallStack(2), /*deduplicateByStack*/ true);
+		}
+		/// @brief	Supply an ALREADY-FORMATTED footer (an origin diagnostic from another host) to render beneath the
+		///			message INSTEAD of this thread's captured stack. Returns *this so it chains before the streamed message:
+		///			`SHIPLOG_ERR.withExternalTrace(buoyOrigin) << reason << ENDL;`. An empty footer leaves the default
+		///			local-capture behavior unchanged.
+		TracingErrorLine& withExternalTrace(std::string footer)
+		{
+			if (!footer.empty())
+			{
+				m_externalFooter    = std::move(footer);
+				m_hasExternalFooter = true;
+			}
+			return *this;
 		}
 		template<typename T>
 		TracingErrorLine& operator<<(const T& value)
@@ -196,8 +214,10 @@ namespace logerr
 		}
 
 	private:
-		std::ostringstream m_prefix;     ///< the "[ts] [tag] [ERROR] [file:line fn]  " lead-in.
-		std::ostringstream m_message;    ///< the streamed message body.
+		std::ostringstream m_prefix;              ///< the "[ts] [tag] [ERROR] [file:line fn]  " lead-in.
+		std::ostringstream m_message;             ///< the streamed message body.
+		std::string        m_externalFooter;      ///< a caller-supplied origin footer (set by withExternalTrace).
+		bool               m_hasExternalFooter = false;    ///< true when m_externalFooter replaces the local stack capture.
 	};
 }    // namespace logerr
 

@@ -61,6 +61,11 @@ namespace
 		std::string           message;
 		std::vector<void*>    frames;
 		bool                  deduplicateByStack = false;
+		// An ALREADY-FORMATTED footer supplied by the caller (e.g. an origin diagnostic relayed from a remote host: the
+		// buoy's resolved command, exit code, captured stderr, and its OWN stack). When non-empty, the worker writes it
+		// verbatim as the footer instead of symbolizing `frames` - the local return addresses are meaningless for an
+		// error that occurred on another host. Empty for an ordinary local error (which symbolizes `frames`).
+		std::string           preformattedFooter;
 		// A flush barrier: when set, the worker invokes this instead of writing an entry, signaling a flush() waiter that
 		// everything queued ahead of it has been processed. Empty for ordinary error entries.
 		std::function<void()> barrier;
@@ -77,12 +82,16 @@ namespace
 	//----------------------------------------------------------------------------------------------------------------------
 	void writeEntry(const TracedError& entry)
 	{
-		// Always symbolize and emit the FULL trace footer into the stream - dedup is NOT applied here. Both sinks (the
-		// GUI log dock and the on-disk file writer) tee this one stream, and the dock must show every error's full
-		// drop-down trace unconditionally. Deduplication of repeated identical stacks is done on the FILE side only
-		// (LogFileWriter collapses a repeated footer to a one-line note), so the on-disk log stays lean while the live
-		// dock never hides a trace. entry.deduplicateByStack is retained on the message for the file writer's use.
-		std::string footer = StackTrace::formatFrames(entry.frames.data(), static_cast<int>(entry.frames.size()));
+		// The footer: a caller-supplied preformatted footer (an origin diagnostic relayed from another host) takes
+		// precedence and is written VERBATIM - its addresses belong to a different process/host and must not be
+		// symbolized here. Otherwise symbolize this thread's captured frames. Either way the FULL footer goes into the
+		// stream - dedup is NOT applied here. Both sinks (the GUI log dock and the on-disk file writer) tee this one
+		// stream, and the dock must show every error's full drop-down trace unconditionally. Deduplication of a repeated
+		// identical footer is done on the FILE side only (LogFileWriter collapses it to a one-line note), so the on-disk
+		// log stays lean while the live dock never hides a trace.
+		std::string footer = entry.preformattedFooter.empty()
+		                         ? StackTrace::formatFrames(entry.frames.data(), static_cast<int>(entry.frames.size()))
+		                         : entry.preformattedFooter;
 
 		// INTENTIONALLY LEAKED (never destroyed): writeEntry runs on the background worker AND, once teardown has begun
 		// (g_shuttingDown), on the synchronous fallback path in enqueueTracedError - a LOGERR emitted during static
@@ -198,12 +207,14 @@ namespace
 			std::mutex              barrierMutex;
 			std::condition_variable barrierDone;
 			bool                    done = false;
-			m_guts->queue.push(TracedError{"", "", {}, false, [&]
-			                               {
-				                               const std::lock_guard<std::mutex> lock(barrierMutex);
-				                               done = true;
-				                               barrierDone.notify_one();
-			                               }});
+			TracedError barrierEntry;
+			barrierEntry.barrier = [&]
+			{
+				const std::lock_guard<std::mutex> lock(barrierMutex);
+				done = true;
+				barrierDone.notify_one();
+			};
+			m_guts->queue.push(std::move(barrierEntry));
 			std::unique_lock<std::mutex> lock(barrierMutex);
 			barrierDone.wait(lock, [&] { return done; });
 		}
@@ -332,10 +343,41 @@ namespace logerr
 	//----------------------------------------------------------------------------------------------------------------------
 	void enqueueTracedError(std::string prefix, std::string message, std::vector<void*> frames, bool deduplicateByStack)
 	{
-		TracedError entry{std::move(prefix), std::move(message), std::move(frames), deduplicateByStack, {}};
+		TracedError entry;
+		entry.prefix             = std::move(prefix);
+		entry.message            = std::move(message);
+		entry.frames             = std::move(frames);
+		entry.deduplicateByStack = deduplicateByStack;
 		if (g_shuttingDown.load())
 		{
 			// The worker singleton is torn down (or being torn down) at process exit: do not touch or resurrect it.
+			writeEntry(entry);
+			return;
+		}
+		const std::lock_guard<std::mutex> lock(g_workerMutex);
+		worker().enqueue(std::move(entry));
+	}
+
+	//----------------------------------------------------------------------------------------------------------------------
+	//      FUNCTION: enqueueTracedError [public]
+	//----------------------------------------------------------------------------------------------------------------------
+	/// @brief		Enqueue an error whose trace footer is ALREADY formatted, bypassing local frame capture/symbolization.
+	/// @param[in]	prefix	the already-formatted "[ts] [tag] [ERROR]    " lead-in.
+	/// @param[in]	message	the streamed message body for this error line.
+	/// @param[in]	footer	the pre-built footer to write verbatim beneath the message (an origin diagnostic relayed from
+	///						another host: its resolved command, exit code, captured stderr, and that host's OWN stack). It is
+	///						NOT symbolized here (the addresses, if any, belong to a different process/host).
+	/// @details	The remote-origin sibling of the frame-capturing overload. There is no deduplication parameter: a
+	///				relayed footer is not a local stack, and the on-disk file writer collapses a repeated footer anyway.
+	//----------------------------------------------------------------------------------------------------------------------
+	void enqueueTracedError(std::string prefix, std::string message, std::string footer)
+	{
+		TracedError entry;
+		entry.prefix             = std::move(prefix);
+		entry.message            = std::move(message);
+		entry.preformattedFooter = std::move(footer);
+		if (g_shuttingDown.load())
+		{
 			writeEntry(entry);
 			return;
 		}
