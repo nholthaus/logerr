@@ -118,6 +118,21 @@ public:
 	[[nodiscard]] static std::string formatFrames(void* const* frames, int count);
 
 	/**
+	 * @brief		Capture the current thread's raw return addresses WITHOUT ever aborting the process.
+	 * @details		The platform backtrace primitive can fault fatally: on Linux, glibc `backtrace()` walks the stack
+	 *				through libgcc's `_Unwind_Backtrace`, which calls `abort()` (a raw SIGABRT, uncatchable by C++)
+	 *				when it meets a frame it cannot unwind - which happens when a binary built with one toolchain runs
+	 *				against a differently-versioned system `libgcc_s`. Since logerr must never crash the process it is
+	 *				diagnosing, the capture is wrapped in a scoped SIGABRT/SIGSEGV guard: a fault degrades to zero
+	 *				frames (no trace) instead of killing the process. This is the POSIX analog of the Windows SEH guard
+	 *				around symbolization. On Windows the capture (CaptureStackBackTrace) cannot fault, so it runs plain.
+	 * @param[out]	out		buffer to fill with raw return addresses (innermost first).
+	 * @param[in]	maxFrames	capacity of @p out.
+	 * @returns		the number of addresses written to @p out (0 if the capture faulted or the stack was empty).
+	 */
+	[[nodiscard]] static int captureFramesSafely(void** out, int maxFrames) noexcept;
+
+	/**
 	 * @brief		Whether the exact call stack in @p frames has already been traced in this process.
 	 * @details		Records the stack on first sight so an identical repeat returns false thereafter. The key is
 	 *				a hash of the raw return addresses, computed BEFORE any symbolization. Thread-safe. Used by

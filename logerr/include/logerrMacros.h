@@ -133,13 +133,12 @@ namespace logerr
 	{
 		constexpr int      maxFrames = 256;
 		std::vector<void*> raw(maxFrames);
-#if defined(_WIN32)
-		const unsigned short captured = CaptureStackBackTrace(0, static_cast<DWORD>(maxFrames), raw.data(), nullptr);
-		raw.resize(captured);
-#else
-		const int captured = ::backtrace(raw.data(), maxFrames);
+		// Capture through StackTrace::captureFramesSafely, NOT a bare backtrace(): on Linux glibc's backtrace() can
+		// abort() the process from inside libgcc's unwinder on a toolchain-mismatched libgcc_s (the buoy-on-Debian
+		// abort). The guarded capture fences that fault and degrades to zero frames, so logging an error can never
+		// crash the process it is diagnosing. On Windows it is a direct CaptureStackBackTrace (which cannot fault).
+		const int captured = StackTrace::captureFramesSafely(raw.data(), maxFrames);
 		raw.resize(captured < 0 ? 0 : static_cast<std::size_t>(captured));
-#endif
 		if (skipInnermost < raw.size())
 			raw.erase(raw.begin(), raw.begin() + skipInnermost);
 		else

@@ -765,6 +765,23 @@ TEST_F(LogerrCoreFixture, LogErrAlwaysCarriesAStackTraceOnAFreshStack)
 	EXPECT_NE(output.find("0x"), std::string::npos) << "a fresh stack must carry the full stack trace";
 }
 
+TEST_F(LogerrCoreFixture, CaptureFramesSafelyReturnsFramesAndNeverAborts)
+{
+	// The guarded capture is transparent on a healthy unwinder: it returns real frames (this test's own call stack) and
+	// never aborts. The fault path (libgcc's _Unwind_Backtrace calling abort() on a toolchain-mismatched libgcc_s)
+	// cannot be provoked deterministically in-process, but the guard's whole job is to keep a NORMAL capture working
+	// while fencing that fault - so proving a normal capture yields frames confirms the fence is not in the way. That
+	// the process reaches the assertions at all is itself the "never aborts" proof.
+	void*     frames[64] = {};
+	const int n          = StackTrace::captureFramesSafely(frames, 64);
+	EXPECT_GT(n, 0) << "a normal capture returns this call stack's frames";
+	EXPECT_LE(n, 64);
+	EXPECT_NE(frames[0], nullptr);
+	// A zero-capacity / null request degrades to zero, never faults.
+	EXPECT_EQ(StackTrace::captureFramesSafely(frames, 0), 0);
+	EXPECT_EQ(StackTrace::captureFramesSafely(nullptr, 64), 0);
+}
+
 TEST_F(LogerrCoreFixture, EnqueueTracedErrorWritesAnExternalFooterVerbatim)
 {
 	// The origin-diagnostic path: an error that occurred on ANOTHER host supplies its footer ALREADY formatted, and the

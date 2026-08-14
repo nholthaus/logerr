@@ -2,6 +2,8 @@
 //	INCLUDES
 //------------------------
 #include "StackTrace.h"
+#include <csetjmp>
+#include <csignal>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -67,6 +69,85 @@ namespace
 //--------------------------------------------------------------------------------------------------
 //	firstTimeForStack ( public, static )
 //--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+//	captureFramesSafely (public static)
+//--------------------------------------------------------------------------------------------------
+/// @brief		Capture the current thread's raw return addresses without ever aborting the process.
+/// @param[out]	out			buffer for the raw return addresses (innermost first).
+/// @param[in]	maxFrames	capacity of @p out.
+/// @return		the number of addresses written (0 if the platform backtrace faulted or the stack was empty).
+/// @details	glibc backtrace() unwinds through libgcc's _Unwind_Backtrace, which calls abort() (a raw SIGABRT, NOT a
+///				C++ exception) when it meets a frame it cannot unwind - which a binary built against one toolchain and
+///				run against a differently-versioned system libgcc_s can trigger. logerr must never crash the process it
+///				diagnoses, so the fragile call is fenced by a scoped SIGABRT/SIGSEGV/SIGBUS guard: a fault siglongjmps
+///				back out and the capture degrades to zero frames. The signal handlers and the jmp_buf are process-global,
+///				so a mutex serializes the whole fenced region; the guard is installed only for the duration of the call
+///				and the prior handlers are restored immediately after. On Windows CaptureStackBackTrace cannot fault.
+//--------------------------------------------------------------------------------------------------
+#ifndef WINDOWS
+namespace
+{
+	// The fence for captureFramesSafely: a jmp_buf the temporary signal handler longjmps to, an "armed" flag so a
+	// stripped/unrelated signal outside the fence is never hijacked, and a mutex serializing the whole region (the
+	// handler + jmp_buf are process-global). All leaked/never-destroyed for the same teardown-safety reason as the
+	// dedup statics above - a late trace during exit-time teardown must not touch a destroyed mutex.
+	std::mutex&                g_captureFenceMutex = *new std::mutex;
+	sigjmp_buf                 g_captureJmp;        // POD (trivial dtor) - no teardown hazard, so a plain static is fine
+	volatile std::sig_atomic_t g_captureArmed      = 0;
+
+	extern "C" void captureFaultHandler(int) noexcept
+	{
+		if (g_captureArmed)
+			siglongjmp(g_captureJmp, 1);    // bail the fenced backtrace(); the caller returns 0 frames
+		// Outside the fence: not ours - re-raise with the default disposition so a real fault still dumps/dies.
+		std::signal(SIGABRT, SIG_DFL);
+		std::raise(SIGABRT);
+	}
+}    // namespace
+#endif
+
+int StackTrace::captureFramesSafely(void** out, int maxFrames) noexcept
+{
+	if (out == nullptr || maxFrames <= 0)
+		return 0;
+#ifdef WINDOWS
+	const unsigned short captured = CaptureStackBackTrace(0, static_cast<DWORD>(maxFrames), out, nullptr);
+	return static_cast<int>(captured);
+#else
+	const std::lock_guard<std::mutex> lock(g_captureFenceMutex);
+
+	// Install temporary handlers for the faults libgcc's unwinder can raise, remembering the prior ones to restore.
+	struct sigaction prevAbrt {};
+	struct sigaction prevSegv {};
+	struct sigaction prevBus {};
+	struct sigaction guard {};
+	guard.sa_handler = captureFaultHandler;
+	sigemptyset(&guard.sa_mask);
+	guard.sa_flags = 0;
+	sigaction(SIGABRT, &guard, &prevAbrt);
+	sigaction(SIGSEGV, &guard, &prevSegv);
+	sigaction(SIGBUS, &guard, &prevBus);
+
+	int result = 0;
+	g_captureArmed = 1;
+	if (sigsetjmp(g_captureJmp, 1) == 0)
+	{
+		const int captured = ::backtrace(out, maxFrames);
+		result             = captured < 0 ? 0 : captured;
+	}
+	// else: a fault longjmped here mid-backtrace; result stays 0 (degrade to no frames, never abort).
+	g_captureArmed = 0;
+
+	sigaction(SIGABRT, &prevAbrt, nullptr);
+	sigaction(SIGSEGV, &prevSegv, nullptr);
+	sigaction(SIGBUS, &prevBus, nullptr);
+	return result;
+#endif
+}
+
+//--------------------------------------------------------------------------------------------------
+//	firstTimeForStack (public static)
+//--------------------------------------------------------------------------------------------------
 /// @brief		Whether the exact call stack in @p frames has already been traced in this process.
 /// @param[in]	frames	the raw return addresses that identify the stack.
 /// @param[in]	count	the number of addresses in @p frames.
@@ -125,8 +206,9 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= 
 	// storage array for stack trace address data
 	void* trace[MAX_FRAMES];
 
-	// retrieve current stack addresses
-	const int frames = backtrace(trace, sizeof(trace) / sizeof(void*));
+	// retrieve current stack addresses through the guarded capture (glibc backtrace() can abort() the process from
+	// libgcc's unwinder on a toolchain-mismatched libgcc_s; captureFramesSafely fences that fault to zero frames).
+	const int frames = captureFramesSafely(trace, static_cast<int>(sizeof(trace) / sizeof(void*)));
 
 	if (frames == 0)
 	{
