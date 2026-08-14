@@ -27,6 +27,7 @@
 #include <QNetworkDatagram>
 #include <QObject>
 #include <QPushButton>
+#include <QSettings>
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QTest>
@@ -259,6 +260,9 @@ namespace
 		                  ("logerr-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".txt");
 		{
 			LogFileWriter writer(path.string());
+			// filePath() reports the exact file this writer opened, populated by the time the (blocking) ctor returns,
+			// so a host can open THIS process's live log instead of guessing the newest file in a shared directory.
+			CHECK(writer.filePath() == path.string());
 			writer.write("first\n");
 			writer.write("second\n");
 		} // destructor drains accepted writes before closing the file
@@ -271,6 +275,42 @@ namespace
 		CHECK(!static_cast<bool>(std::getline(file, extra)));
 		CHECK(first == "first");
 		CHECK(second == "second");
+		std::error_code ignored;
+		std::filesystem::remove(path, ignored);
+	}
+
+	void testLogFileWriterDeduplicatesRepeatedTraceFooters()
+	{
+		const auto path = std::filesystem::temp_directory_path() /
+		                  ("logerr-dedup-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".txt");
+		// A frame line matches the "[<n>] ... 0x..." shape formatFrames emits; two entries carry the IDENTICAL footer,
+		// one carries a DIFFERENT footer. The file writer must record the first full, collapse the repeat to the note,
+		// and record the different footer in full - the on-disk dedup contract (the GUI dock, a separate sink, is
+		// unaffected: it never sees the file writer).
+		const std::string footerA =
+		    "    [0  ]   0x00007ff000000001: a.cpp:10                | foo\n"
+		    "    [1  ]   0x00007ff000000002: b.cpp:20                | bar\n";
+		const std::string footerB =
+		    "    [0  ]   0x00007ff000000003: c.cpp:30                | baz\n";
+		{
+			LogFileWriter writer(path.string());
+			writer.write("[t] [m] [ERROR]    boom\n" + footerA);    // first: full
+			writer.write("[t] [m] [ERROR]    boom again\n" + footerA);    // repeat of footerA: collapsed
+			writer.write("[t] [m] [ERROR]    different\n" + footerB);    // new footer: full
+		}
+		std::ifstream    file(path);
+		const std::string contents((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+		// footerA's frames appear exactly once (first entry); the repeat became the note; footerB's frame appears once.
+		const auto countOccurrences = [&](const std::string& needle)
+		{
+			std::size_t n = 0, pos = 0;
+			while ((pos = contents.find(needle, pos)) != std::string::npos) { ++n; pos += needle.size(); }
+			return n;
+		};
+		CHECK(countOccurrences("a.cpp:10") == 1);    // footerA traced once
+		CHECK(countOccurrences("c.cpp:30") == 1);    // footerB traced once
+		CHECK(countOccurrences("trace deduplicated") == 1);    // the single repeat noted
+		CHECK(contents.find("boom again") != std::string::npos);    // the repeat's MESSAGE is still written
 		std::error_code ignored;
 		std::filesystem::remove(path, ignored);
 	}
@@ -501,6 +541,7 @@ LOGERR_TEST(LogStream, testLogStream)
 LOGERR_TEST(TimestampLite, testTimestampLite)
 LOGERR_TEST(ErrorMacrosAndMetadata, testErrorMacrosAndMetadata)
 LOGERR_TEST(LogFileWriter, testLogFileWriter)
+LOGERR_TEST(LogFileWriterDeduplicatesRepeatedTraceFooters, testLogFileWriterDeduplicatesRepeatedTraceFooters)
 LOGERR_TEST(LogerrThreadStopAndExceptionSafety, testLogerrThreadStopAndExceptionSafety)
 LOGERR_TEST(LambdaErrorFunctionContext, testLambdaErrorHasUsefulFunctionContext)
 LOGERR_TEST(QEventThreadAffinityAndOrdering, testPrimitiveAffinityAndOrdering)
@@ -687,6 +728,13 @@ TEST_F(LogProxyModelFixture, InheritedTextFilteringAndSortingUseScalarCellText)
 class QtWidgetFixture : public ::testing::Test
 {
 protected:
+	// LogDock now persists its filter/column/search preferences to QSettings and restores them on construction. Clear
+	// the settings scope before each widget test so a LogDock starts from its documented defaults (all levels shown,
+	// all columns visible) - otherwise a preference persisted by a prior test leaks in and silently filters the rows a
+	// later test expects to see (an order-dependent failure). This is the polluter fix at the fixture, not per-test.
+	void SetUp() override { QSettings().clear(); }
+	void TearDown() override { QSettings().clear(); }
+
 	template<class Widget>
 	static Widget* childWithText(QObject& parent, const QString& text)
 	{
@@ -759,6 +807,46 @@ TEST_F(QtWidgetFixture, LogDockControlsDriveFilteringColumnsSearchAndScrollback)
 	auto* sourceModel = dynamic_cast<LogModel*>(proxyModel->sourceModel());
 	ASSERT_NE(sourceModel, nullptr);
 	EXPECT_EQ(sourceModel->rowCount(), 1);
+}
+
+TEST_F(QtWidgetFixture, LogDockSettingsPersistAcrossConstruction)
+{
+	// Persist to an isolated in-memory-ish settings scope (a unique org/app so the test never touches real settings),
+	// cleared up front so the run is deterministic. A fresh LogDock must reopen with the values the prior one left -
+	// EVERY control, not just one (the restore-races-its-own-save bug corrupted the store to all-defaults-but-one).
+	const QString previousOrg = qApp->organizationName();
+	const QString previousApp = qApp->applicationName();
+	qApp->setOrganizationName("logerr-test-org");
+	qApp->setApplicationName(QString("logdock-persist-%1").arg(std::chrono::steady_clock::now().time_since_epoch().count()));
+	QSettings().clear();
+
+	{
+		LogDock dock;
+		childWithText<QCheckBox>(dock, "Errors")->setChecked(false);
+		childWithText<QCheckBox>(dock, "Warnings")->setChecked(false);
+		childWithText<QCheckBox>(dock, "Info")->setChecked(false);
+		childWithText<QCheckBox>(dock, "Debug")->setChecked(false);
+		childWithText<QCheckBox>(dock, "Timestamps")->setChecked(false);
+		childWithText<QCheckBox>(dock, "Modules")->setChecked(false);
+		childWithText<QCheckBox>(dock, "Autoscroll")->setChecked(false);
+	}
+
+	{
+		LogDock restored;
+		// Every level filter and column toggle the prior dock turned off must come back off - proving the whole set
+		// persists, not just the last-changed control.
+		EXPECT_FALSE(childWithText<QCheckBox>(restored, "Errors")->isChecked());
+		EXPECT_FALSE(childWithText<QCheckBox>(restored, "Warnings")->isChecked());
+		EXPECT_FALSE(childWithText<QCheckBox>(restored, "Info")->isChecked());
+		EXPECT_FALSE(childWithText<QCheckBox>(restored, "Debug")->isChecked());
+		EXPECT_FALSE(childWithText<QCheckBox>(restored, "Timestamps")->isChecked());
+		EXPECT_FALSE(childWithText<QCheckBox>(restored, "Modules")->isChecked());
+		EXPECT_FALSE(childWithText<QCheckBox>(restored, "Autoscroll")->isChecked());
+	}
+
+	QSettings().clear();
+	qApp->setOrganizationName(previousOrg);
+	qApp->setApplicationName(previousApp);
 }
 
 TEST_F(QtWidgetFixture, GuiApplicationHelperFindsTheMainWindow)

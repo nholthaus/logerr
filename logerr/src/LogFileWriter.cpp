@@ -50,11 +50,13 @@
 
 // std
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <future>
 #include <iostream>
 #include <memory>
+#include <string_view>
 
 //----------------------------
 //  USING NAMESPACE
@@ -123,6 +125,13 @@ LogFileWriter::LogFileWriter(std::string logFilePath)
 			                       std::cerr << '[' << TimestampLite() << "] [ERROR]    Failed to open the log file for writing: "
 			                                 << logFilePath << '\n';
 			                       error = true;
+		                       }
+
+		                       // Publish the resolved path (guarded) BEFORE reporting readiness, so filePath() is
+		                       // populated by the time the constructor - which blocks on this readiness - returns.
+		                       {
+			                       const std::lock_guard<std::mutex> pathLock(m_filePathMutex);
+			                       m_filePath = logFilePath;
 		                       }
 
 		                       // At this point the worker is initialized. Report readiness before entering the blocking pop.
@@ -199,5 +208,86 @@ LogFileWriter::~LogFileWriter()
 /// @remarks this function is thread-safe
 void LogFileWriter::write(std::string str)
 {
-	m_logQueue.emplace(std::move(str));
+	// Deduplicate a repeated trace footer for the ON-DISK log only (the GUI dock, a separate sink, still shows every
+	// full trace). The first entry carrying a given stack keeps its full footer; a later entry with the identical
+	// footer is written with the footer collapsed to a one-line note, so the file does not repeat an identical stack.
+	m_logQueue.emplace(deduplicateTraceFooter(std::move(str)));
+}
+
+//--------------------------------------------------------------------------------------------------
+//	deduplicateTraceFooter (private ) []
+//--------------------------------------------------------------------------------------------------
+/// @brief Collapse a repeated stack-trace footer in a file-bound log entry (see the header for the contract).
+std::string LogFileWriter::deduplicateTraceFooter(std::string entry)
+{
+	// The trace footer is the trailing run of symbolized frame lines. formatFrames emits each as, e.g.,
+	//   "    [0  ]   0x00007ff...: slipway.cpp:1519            | Slipway::continueLaunch"
+	// Detect the footer's first line by that leading "[<digits>]" + " 0x" shape (indentation-agnostic), and treat from
+	// there to the end of the entry as the footer. Everything before it is the message (kept verbatim).
+	const auto isFrameLine = [](std::string_view line) noexcept
+	{
+		std::size_t i = 0;
+		while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) ++i;
+		if (i >= line.size() || line[i] != '[') return false;
+		++i;
+		const std::size_t digitsStart = i;
+		while (i < line.size() && line[i] >= '0' && line[i] <= '9') ++i;
+		if (i == digitsStart) return false;    // "[" not followed by a frame index
+		while (i < line.size() && line[i] == ' ') ++i;
+		if (i >= line.size() || line[i] != ']') return false;
+		return line.find("0x") != std::string_view::npos;    // a symbolized frame carries a hex address
+	};
+
+	// Find the byte offset of the first frame line (scanning line by line). No frame line -> not a traced error; return
+	// the entry untouched.
+	std::size_t footerStart = std::string::npos;
+	std::size_t lineBegin    = 0;
+	while (lineBegin < entry.size())
+	{
+		std::size_t lineEnd = entry.find('\n', lineBegin);
+		if (lineEnd == std::string::npos) lineEnd = entry.size();
+		if (isFrameLine(std::string_view(entry).substr(lineBegin, lineEnd - lineBegin)))
+		{
+			footerStart = lineBegin;
+			break;
+		}
+		lineBegin = lineEnd + 1;
+	}
+	if (footerStart == std::string::npos)
+		return entry;    // no trace footer to dedup
+
+	const std::string_view footer(std::string_view(entry).substr(footerStart));
+
+	// FNV-1a over the footer bytes: a stable, cheap key for "the same trace, symbolized identically."
+	std::uint64_t hash = 1469598103934665603ULL;
+	for (const char c : footer)
+	{
+		hash ^= static_cast<std::uint8_t>(c);
+		hash *= 1099511628211ULL;
+	}
+
+	{
+		const std::lock_guard<std::mutex> lock(m_dedupMutex);
+		if (m_seenTraceFooters.insert(hash).second)
+			return entry;    // first time this footer is seen: write it in full
+	}
+
+	// A repeat: keep the message (everything before the footer) and replace the footer with a one-line note so the
+	// on-disk log records THAT the error recurred on the same stack without re-printing the whole trace.
+	std::string collapsed = entry.substr(0, footerStart);
+	if (!collapsed.empty() && collapsed.back() != '\n')
+		collapsed += '\n';
+	collapsed += "    (trace deduplicated - identical call stack already recorded above)\n";
+	return collapsed;
+}
+
+//--------------------------------------------------------------------------------------------------
+//	filePath (public ) []
+//--------------------------------------------------------------------------------------------------
+/// @brief Returns the absolute path of the log file this writer opened.
+/// @remarks this function is thread-safe
+std::string LogFileWriter::filePath() const
+{
+	const std::lock_guard<std::mutex> pathLock(m_filePathMutex);
+	return m_filePath;
 }

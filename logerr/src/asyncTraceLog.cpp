@@ -77,11 +77,12 @@ namespace
 	//----------------------------------------------------------------------------------------------------------------------
 	void writeEntry(const TracedError& entry)
 	{
-		std::string footer;
-		const bool  firstSeen = !entry.deduplicateByStack ||
-		                       StackTrace::firstTimeForStack(entry.frames.data(), static_cast<int>(entry.frames.size()));
-		if (firstSeen)
-			footer = StackTrace::formatFrames(entry.frames.data(), static_cast<int>(entry.frames.size()));
+		// Always symbolize and emit the FULL trace footer into the stream - dedup is NOT applied here. Both sinks (the
+		// GUI log dock and the on-disk file writer) tee this one stream, and the dock must show every error's full
+		// drop-down trace unconditionally. Deduplication of repeated identical stacks is done on the FILE side only
+		// (LogFileWriter collapses a repeated footer to a one-line note), so the on-disk log stays lean while the live
+		// dock never hides a trace. entry.deduplicateByStack is retained on the message for the file writer's use.
+		std::string footer = StackTrace::formatFrames(entry.frames.data(), static_cast<int>(entry.frames.size()));
 
 		// INTENTIONALLY LEAKED (never destroyed): writeEntry runs on the background worker AND, once teardown has begun
 		// (g_shuttingDown), on the synchronous fallback path in enqueueTracedError - a LOGERR emitted during static
@@ -91,10 +92,30 @@ namespace
 		// one mutex.
 		static std::mutex&                outputMutex = *new std::mutex;
 		const std::lock_guard<std::mutex> lock(outputMutex);
-		std::cout << entry.prefix << entry.message;
+		// Write the WHOLE entry as ONE string with the terminating newline LAST. A consumer that tees std::cout and
+		// dispatches a log record on each newline (e.g. the Qt log dock's LogStream) must see the message AND its trace
+		// footer as a SINGLE multi-line record - so the footer becomes the entry's expandable detail (the drop-down), not
+		// a separate childless row. Writing the message, then a '\n', then the footer as separate insertions would flush
+		// the message alone at that first '\n' and split the footer into orphan rows (no drop-down). One string, one
+		// terminal newline, one record.
+		std::string line = entry.prefix;
+		line += entry.message;
+		// The message body is streamed with a trailing ENDL (std::endl) at almost every call site, so it usually already
+		// ends in one (or more) '\n'. Trim any trailing newlines/carriage-returns before joining the footer so there is
+		// exactly ONE '\n' between the message and the first trace frame - not a blank line. Without this, message-ending
+		// "\n" + the separator "\n" render as a spurious empty row between the error text and its stack trace.
+		while (!line.empty() && (line.back() == '\n' || line.back() == '\r'))
+			line.pop_back();
 		if (!footer.empty())
-			std::cout << '\n' << footer;
-		std::cout << std::endl;
+		{
+			line += '\n';
+			line += footer;
+		}
+		// Exactly one terminal newline so the whole entry is one record ending cleanly (the tee dispatches on it).
+		while (!line.empty() && (line.back() == '\n' || line.back() == '\r'))
+			line.pop_back();
+		line += '\n';
+		std::cout << line << std::flush;
 	}
 
 	// The process-lifetime worker. A single background thread drains the queue, symbolizes each entry's frames off the

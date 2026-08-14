@@ -46,6 +46,7 @@
 
 #include <filesystem>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -76,6 +77,32 @@ namespace logerr
 			if (QMainWindow* mainWin = qobject_cast<QMainWindow*>(w))
 				return mainWin;
 		return nullptr;
+	}
+
+	// The absolute path of THIS process's live log file, published once by LOGERR_GUI_APP_BEGIN from the app's
+	// LogFileWriter. A host's "open my log" action reads it to open the exact file being written - never a
+	// "newest file in the log directory" guess, which is wrong when several processes share one log directory (a
+	// sibling's or a stale file wins the sort). Guarded because the setter runs on the main thread at startup and a
+	// reader may be any thread.
+	inline std::mutex& liveLogFilePathMutex()
+	{
+		static std::mutex mutex;
+		return mutex;
+	}
+	inline std::string& liveLogFilePathStorage()
+	{
+		static std::string path;
+		return path;
+	}
+	[[maybe_unused]] static void setLiveLogFilePath(std::string path)
+	{
+		const std::lock_guard<std::mutex> lock(liveLogFilePathMutex());
+		liveLogFilePathStorage() = std::move(path);
+	}
+	[[maybe_unused]] static std::string liveLogFilePath()
+	{
+		const std::lock_guard<std::mutex> lock(liveLogFilePathMutex());
+		return liveLogFilePathStorage();
 	}
 }    // namespace logerr
 
@@ -116,6 +143,7 @@ namespace logerr
 	app.setApplicationVersion(QAPPINFO::version());                                                                             \
                                                                                                                                 \
 	LogFileWriter logFileWriter;                                                                                                \
+	logerr::setLiveLogFilePath(logFileWriter.filePath());                                                                       \
 	LogDock*      logDock = new LogDock;                                                                                        \
 	LogReceiver   logReceiver;                                                                                                  \
 	LogStream     logStream(std::cout);                                                                                         \

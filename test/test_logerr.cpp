@@ -765,29 +765,32 @@ TEST_F(LogerrCoreFixture, LogErrAlwaysCarriesAStackTraceOnAFreshStack)
 	EXPECT_NE(output.find("0x"), std::string::npos) << "a fresh stack must carry the full stack trace";
 }
 
-TEST_F(LogerrCoreFixture, LogErrDeduplicatesTheTracePerIdenticalStack)
+TEST_F(LogerrCoreFixture, LogErrEmitsTheFullTraceForEveryOccurrenceInTheStream)
 {
 	logerr::resetTracedSites();
 	CoutCapture capture;
 
-	// The SAME LOGERR line hit three times in a loop is the SAME stack each time (identical return addresses): the
-	// trace footer must appear exactly ONCE (first hit), then message-only on the repeats.
+	// The SAME LOGERR line hit three times is the SAME stack each time. The STREAM (what CoutCapture sees, and what
+	// both the GUI dock and the file writer tee) must carry the FULL trace on EVERY occurrence - deduplication is NOT a
+	// stream concern. The dock shows every error's full drop-down trace; the on-disk file writer is the ONLY place that
+	// collapses a repeated footer (covered by testLogFileWriterDeduplicatesRepeatedTraceFooters). So here: three
+	// messages AND three trace footers.
 	for (int i = 0; i < 3; ++i)
 		LOGERR << "recurring failure " << i << ENDL;
 
 	logerr::flushTracedErrors();
 	const std::string output = capture.str();
 	EXPECT_EQ(occurrences(output, "recurring failure "), 3U) << "every hit logs its message line";
-	// Exactly one trace footer for three identical-stack repeats.
+	// A trace footer (frame addresses) appears after EACH of the three messages - none is deduped in the stream.
+	const std::size_t firstMsg  = output.find("recurring failure 0");
 	const std::size_t secondMsg = output.find("recurring failure 1");
 	const std::size_t thirdMsg  = output.find("recurring failure 2");
-	ASSERT_NE(output.find("recurring failure 0"), std::string::npos);
+	ASSERT_NE(firstMsg, std::string::npos);
 	ASSERT_NE(secondMsg, std::string::npos);
 	ASSERT_NE(thirdMsg, std::string::npos);
-	// Between the 2nd and 3rd message there is no trace footer (an identical-stack repeat is message-only).
-	const std::size_t traceAfterSecond = output.find("0x", secondMsg + 1);
-	EXPECT_TRUE(traceAfterSecond == std::string::npos || traceAfterSecond > thirdMsg)
-	    << "a repeated identical stack must not re-emit the stack trace";
+	EXPECT_TRUE(output.find("0x", firstMsg) < secondMsg) << "the first occurrence carries its trace";
+	EXPECT_TRUE(output.find("0x", secondMsg) < thirdMsg) << "the second occurrence carries its trace (no stream dedup)";
+	EXPECT_NE(output.find("0x", thirdMsg), std::string::npos) << "the third occurrence carries its trace (no stream dedup)";
 }
 
 TEST_F(LogerrCoreFixture, DifferentCallPathsThroughTheSameLineEachTrace)
@@ -933,15 +936,14 @@ TEST_F(LogerrCoreFixture, CaughtExceptionLogsMessageFirstThenItsThrowSiteTraceFo
 	EXPECT_EQ(output.find("STACK TRACE:"), std::string::npos) << "e.what()'s fat blob is not logged; only the clean message";
 }
 
-TEST_F(LogerrCoreFixture, CaughtExceptionDeduplicatesByThrowSiteStack)
+TEST_F(LogerrCoreFixture, CaughtExceptionEmitsItsThrowSiteTraceForEveryOccurrenceInTheStream)
 {
-	// Logging the SAME throw-site stack repeatedly: the first carries a footer, each identical repeat is message-only -
-	// the exact deduplication LOGERR applies, but on the throw-site stack the exception captured.
+	// Logging the SAME caught exception repeatedly: each occurrence carries its full throw-site trace in the STREAM.
+	// Deduplication is NOT a stream concern (the GUI dock must show every occurrence's trace); the on-disk file writer
+	// is the sole place a repeated footer is collapsed. So the stream shows three messages AND three throw-site traces.
 	//
-	// Capture ONE exception and log THAT SAME object three times, rather than throwing three times: an exception's
-	// frames() are fixed at construction, so all three logCaughtError() calls dedup on a byte-identical frame array -
-	// guaranteed on every toolchain. (Two real throws are NOT guaranteed to produce byte-identical stacks: the C++
-	// exception ABI / unwinder can vary a frame across throws on some compilers, which made a throw-thrice version flaky.)
+	// One captured exception logged three times (not three throws): an exception's frames() are fixed at construction,
+	// so all three logCaughtError() calls carry a byte-identical footer - a deterministic check on every toolchain.
 	logerr::resetTracedSites();
 	CoutCapture capture;
 
@@ -953,20 +955,16 @@ TEST_F(LogerrCoreFixture, CaughtExceptionDeduplicatesByThrowSiteStack)
 	logerr::flushTracedErrors();
 	const std::string output = capture.str();
 	EXPECT_EQ(occurrences(output, "recurring caught failure"), 3U) << "every caught occurrence logs its message";
-	// Exactly one throw-site footer across three identical-stack repeats: between the 1st and 2nd message there is a
-	// trace, but between the 2nd and 3rd there is none.
+	// A throw-site trace follows EACH of the three messages - the stream never dedups.
 	const std::size_t firstMsg  = output.find("recurring caught failure");
 	ASSERT_NE(firstMsg, std::string::npos);
 	const std::size_t secondMsg = output.find("recurring caught failure", firstMsg + 1);
 	const std::size_t thirdMsg  = output.find("recurring caught failure", secondMsg + 1);
 	ASSERT_NE(secondMsg, std::string::npos);
 	ASSERT_NE(thirdMsg, std::string::npos);
-	const std::size_t traceAfterFirst = output.find("0x", firstMsg);
-	EXPECT_NE(traceAfterFirst, std::string::npos) << "the first caught occurrence traces";
-	EXPECT_LT(traceAfterFirst, secondMsg) << "the trace follows the first message and precedes the second";
-	const std::size_t traceAfterSecond = output.find("0x", secondMsg + 1);
-	EXPECT_TRUE(traceAfterSecond == std::string::npos || traceAfterSecond > thirdMsg)
-	    << "an identical repeated throw stack must not re-emit the trace - message-only, exactly like LOGERR";
+	EXPECT_TRUE(output.find("0x", firstMsg) < secondMsg) << "the first caught occurrence traces before the second";
+	EXPECT_TRUE(output.find("0x", secondMsg) < thirdMsg) << "the second caught occurrence traces (no stream dedup)";
+	EXPECT_NE(output.find("0x", thirdMsg), std::string::npos) << "the third caught occurrence traces (no stream dedup)";
 }
 
 TEST_F(LogerrCoreFixture, StackDeduplicationIsThreadSafe)

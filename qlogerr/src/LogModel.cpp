@@ -256,9 +256,14 @@ void LogModel::appendRow(const QString& value)
 		m_logData.back().append(match.captured(4).trimmed());
 		if (!match.captured(5).isEmpty())
 		{
+			// Skip empty pieces from the CRLF-terminated detail block so no spurious blank child row appears (see parse()).
 			const QStringList details = match.captured(5).split('\n');
 			for (const auto& detail : details)
-				m_logData.back().append(detail.trimmed());
+			{
+				const QString trimmed = detail.trimmed();
+				if (!trimmed.isEmpty())
+					m_logData.back().append(trimmed);
+			}
 		}
 	}
 
@@ -343,9 +348,16 @@ QStringList LogModel::parse(const std::string& str) const
 		parsedList.append(match.captured(4).trimmed());
 		if (!match.captured(5).isEmpty())
 		{
+			// Split the detail block into child rows. Skip empty pieces: the block is CRLF-terminated, so splitting on
+			// '\n' yields a trailing empty piece (and any blank separator line inside), which would otherwise render as
+			// a spurious empty drop-down row between the message and the first trace frame.
 			const QStringList details = match.captured(5).split('\n');
 			for (const auto& detail : details)
-				parsedList.append(detail.trimmed());
+			{
+				const QString trimmed = detail.trimmed();
+				if (!trimmed.isEmpty())
+					parsedList.append(trimmed);
+			}
 		}
 	}
 

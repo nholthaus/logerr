@@ -91,6 +91,8 @@ private slots:
 	void autoscroll() const;
 	void stableScroll() const;
 	void search(const QString& value) const;
+	void saveSettings() const;
+	void restoreSettings() const;
 
 private:
 	LogModel*      m_logModel      = nullptr;
@@ -119,6 +121,8 @@ private:
 	QLineEdit*   m_searchLineEdit  = nullptr;
 	QToolButton* m_matchCaseButton = nullptr;
 	QToolButton* m_regexButton     = nullptr;
+
+	mutable bool m_restoring = false;    ///< true while restoreSettings() applies values, gating saveSettings (see .cpp).
 };
 
 #endif    // logDock_h__

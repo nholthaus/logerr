@@ -12,12 +12,20 @@
 #include <QLayout>
 #include <QLineEdit>
 #include <QScrollBar>
+#include <QSettings>
 #include <QStyle>
 #include <QStyleFactory>
 #include <QToolButton>
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <utility>
+
+namespace
+{
+	// The QSettings group every LogDock preference lives under. Keeping every key beneath one group keeps the log
+	// dock's persisted state self-contained and easy to clear.
+	constexpr const char* SETTINGS_GROUP = "logerr/logDock";
+}    // namespace
 
 Q_DECLARE_METATYPE(std::string)
 
@@ -142,6 +150,80 @@ LogDock::LogDock()
 	VERIFY(connect(m_searchLineEdit, &QLineEdit::textChanged, this, &LogDock::search));
 	VERIFY(connect(m_matchCaseButton, &QToolButton::clicked, [this](bool checked)
 	               { checked ? m_logProxyModel->setFilterCaseSensitivity(Qt::CaseSensitive) : m_logProxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive); }));
+
+	// Persist every user-facing preference (the level filters, the timestamp/module column toggles, autoscroll, the
+	// match-case/regex search modes, and the scrollback size) so the dock reopens the way the operator left it. Each
+	// control writes the whole set on any change; restoreSettings() below reapplies the saved set once at construction,
+	// AFTER the defaults are set, so a saved value wins over the default and drives the connected slot via toggled().
+	for (QCheckBox* box : {m_errorCheckBox, m_warningCheckBox, m_infoCheckBox, m_debugCheckBox, m_showTimestampsCheckBox,
+	                       m_showModulesCheckBox, m_autoscrollCheckBox})
+		VERIFY(connect(box, &QCheckBox::toggled, this, &LogDock::saveSettings));
+	for (QToolButton* button : {m_matchCaseButton, m_regexButton})
+		VERIFY(connect(button, &QToolButton::toggled, this, &LogDock::saveSettings));
+	VERIFY(connect(m_scrollbackLineEdit, &QLineEdit::textChanged, this, &LogDock::saveSettings));
+
+	restoreSettings();
+}
+
+//--------------------------------------------------------------------------------------------------
+//	saveSettings (private ) []
+//--------------------------------------------------------------------------------------------------
+void LogDock::saveSettings() const
+{
+	// While restoreSettings() is applying saved values, each setChecked/setText fires toggled/textChanged. Without this
+	// guard, the FIRST restored control that changes value would trigger a full save that captures every OTHER control
+	// still at its constructor default - overwriting their saved values with defaults, so only one preference survives.
+	// The filter/column slots (connected separately) still run during restore; only the persistence write is gated.
+	if (m_restoring)
+		return;
+
+	QSettings settings;
+	settings.beginGroup(SETTINGS_GROUP);
+	settings.setValue("showErrors", m_errorCheckBox->isChecked());
+	settings.setValue("showWarnings", m_warningCheckBox->isChecked());
+	settings.setValue("showInfo", m_infoCheckBox->isChecked());
+	settings.setValue("showDebug", m_debugCheckBox->isChecked());
+	settings.setValue("showTimestamps", m_showTimestampsCheckBox->isChecked());
+	settings.setValue("showModules", m_showModulesCheckBox->isChecked());
+	settings.setValue("autoscroll", m_autoscrollCheckBox->isChecked());
+	settings.setValue("matchCase", m_matchCaseButton->isChecked());
+	settings.setValue("regex", m_regexButton->isChecked());
+	settings.setValue("scrollback", m_scrollbackLineEdit->text());
+	settings.endGroup();
+}
+
+//--------------------------------------------------------------------------------------------------
+//	restoreSettings (private ) []
+//--------------------------------------------------------------------------------------------------
+void LogDock::restoreSettings() const
+{
+	// Suppress the persistence write while applying values (see saveSettings): the filter/column slots still fire, but
+	// the whole set is not re-saved control-by-control mid-restore. Reset on every exit path.
+	m_restoring = true;
+	struct RestoreGuard
+	{
+		bool& flag;
+		~RestoreGuard() { flag = false; }
+	} guard{m_restoring};
+
+	QSettings settings;
+	settings.beginGroup(SETTINGS_GROUP);
+	// Reapply each saved value, defaulting to the just-set-in-constructor default when no preference was ever stored.
+	// setChecked/setText fire toggled/textChanged, so the connected slot (the proxy-model filter, the column-hide, the
+	// scrollback resize) applies the restored value with no extra wiring.
+	m_errorCheckBox->setChecked(settings.value("showErrors", m_errorCheckBox->isChecked()).toBool());
+	m_warningCheckBox->setChecked(settings.value("showWarnings", m_warningCheckBox->isChecked()).toBool());
+	m_infoCheckBox->setChecked(settings.value("showInfo", m_infoCheckBox->isChecked()).toBool());
+	m_debugCheckBox->setChecked(settings.value("showDebug", m_debugCheckBox->isChecked()).toBool());
+	m_showTimestampsCheckBox->setChecked(settings.value("showTimestamps", m_showTimestampsCheckBox->isChecked()).toBool());
+	m_showModulesCheckBox->setChecked(settings.value("showModules", m_showModulesCheckBox->isChecked()).toBool());
+	m_autoscrollCheckBox->setChecked(settings.value("autoscroll", m_autoscrollCheckBox->isChecked()).toBool());
+	m_matchCaseButton->setChecked(settings.value("matchCase", m_matchCaseButton->isChecked()).toBool());
+	m_regexButton->setChecked(settings.value("regex", m_regexButton->isChecked()).toBool());
+	const QString scrollback = settings.value("scrollback", m_scrollbackLineEdit->text()).toString();
+	if (!scrollback.isEmpty())
+		m_scrollbackLineEdit->setText(scrollback);
+	settings.endGroup();
 }
 
 //--------------------------------------------------------------------------------------------------
