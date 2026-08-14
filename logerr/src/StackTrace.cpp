@@ -105,6 +105,11 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= 
 #ifdef WINDOWS
 	void* stack[MAX_FRAMES]{};
 	const unsigned short frames = CaptureStackBackTrace(ignore, MAX_FRAMES, stack, nullptr);
+	// Skip the innermost captured frame (this CaptureStackBackTrace call site); the remainder is the post-skip set that
+	// is both symbolized below and retained in m_frames. Retain it BEFORE the suppression early-return so a duplicate
+	// stack still carries its frames (a caller re-symbolizing an identical stack elsewhere needs them).
+	if (frames > 1)
+		m_frames.assign(stack + 1, stack + frames);
 	// Gate the expensive per-frame symbolization behind a first-seen-stack check when deduplication is requested. The
 	// raw addresses are already captured; a repeat of the exact same stack produces an empty, suppressed trace here and
 	// never touches dbghelp again. A distinct stack (a different call path, even through the same source line) hashes
@@ -114,9 +119,8 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= 
 		m_suppressed = true;
 		return;
 	}
-	// Skip the innermost captured frame (this CaptureStackBackTrace call site) and symbolize the rest.
-	if (frames > 0)
-		m_value = formatFrames(stack + 1, frames - 1);
+	if (!m_frames.empty())
+		m_value = formatFrames(m_frames.data(), static_cast<int>(m_frames.size()));
 #else
 	// storage array for stack trace address data
 	void* trace[MAX_FRAMES];
@@ -130,6 +134,13 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= 
 		return;
 	}
 
+	// Skip the innermost frame (this backtrace call site) plus the caller-requested `ignore` frames; the remainder is
+	// the post-skip set that is both symbolized below and retained in m_frames. Retain it BEFORE the suppression
+	// early-return so a duplicate stack still carries its frames.
+	const int skip = 1 + static_cast<int>(ignore);
+	if (frames > skip)
+		m_frames.assign(trace + skip, trace + frames);
+
 	// Gate the expensive symbolization behind a first-seen-stack check when deduplication is requested (identical to the
 	// Windows branch): the raw addresses are captured, a repeat of the exact same stack is suppressed here and never
 	// symbolized again, and a distinct call path always traces in full.
@@ -139,10 +150,8 @@ StackTrace::StackTrace(unsigned int ignore /*= 0*/, bool deduplicateByStack /*= 
 		return;
 	}
 
-	// Skip the innermost frame (this backtrace call site) plus the caller-requested `ignore` frames, then symbolize.
-	const int skip = 1 + static_cast<int>(ignore);
-	if (frames > skip)
-		m_value = formatFrames(trace + skip, frames - skip);
+	if (!m_frames.empty())
+		m_value = formatFrames(m_frames.data(), static_cast<int>(m_frames.size()));
 #endif
 }
 
@@ -415,4 +424,15 @@ const char* StackTrace::data() const noexcept
 StackTrace::operator std::string() const
 {
 	return m_value;
+}
+
+//--------------------------------------------------------------------------------------------------
+//  frames ( public )
+//--------------------------------------------------------------------------------------------------
+/// @brief		The raw return addresses this trace captured, in innermost-first order.
+/// @return		the post-skip frame set (the exact array symbolized), retained even for a suppressed duplicate.
+//--------------------------------------------------------------------------------------------------
+const std::vector<void*>& StackTrace::frames() const noexcept
+{
+	return m_frames;
 }

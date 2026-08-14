@@ -47,6 +47,7 @@
 
 #include <exception>
 #include <string>
+#include <vector>
 
 #include <StackTrace.h>
 
@@ -72,6 +73,10 @@ public:
 	[[nodiscard]] size_t      line() const;
 	[[nodiscard]] std::string trace() const;
 	[[nodiscard]] bool        fatal() const;
+
+	/// The throw-site return addresses captured when the exception was constructed (NOT the catch-site stack). Lets a
+	/// catch handler log the useful throw-site trace via the shared async path instead of recapturing where it caught.
+	[[nodiscard]] const std::vector<void*>& frames() const noexcept;
 
 private:
 	std::string m_errorMessage;

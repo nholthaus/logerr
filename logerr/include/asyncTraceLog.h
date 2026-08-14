@@ -40,6 +40,8 @@
 #include <string>
 #include <vector>
 
+class StackTraceException;
+
 namespace logerr
 {
 	/// @brief		Enqueue a deferred, to-be-symbolized error entry for the background trace-log worker.
@@ -53,6 +55,17 @@ namespace logerr
 	/// @param[in]	deduplicateByStack	when true, an identical stack already logged this process is written message-only
 	///									(no trace footer); a distinct stack always gets its full trace.
 	void enqueueTracedError(std::string prefix, std::string message, std::vector<void*> frames, bool deduplicateByStack);
+
+	/// @brief		Log a caught StackTraceException with the same message-first, deduped-trace-footer contract as LOGERR.
+	/// @details	The single entry point for a caught/relayed logerr::exception that ALREADY captured its throw-site
+	///				stack. It builds the identical "[ts] [tag] [ERROR]    " lead-in TracingErrorLine builds (no source
+	///				location on the line), then hands the exception's CLEAN message and its OWN throw-site frames to the
+	///				async pipeline with deduplication ON - so an identical throw stack seen twice logs message-only the
+	///				second time, exactly like LOGERR. This keeps a caught exception on the SAME invariant as LOGERR:
+	///				message-first headline + deduped throw-site trace footer, without routing through LOGERR (which would
+	///				recapture the useless catch-site stack and dedup on the wrong stack).
+	/// @param[in]	error	the caught exception whose errorMessage() and frames() (throw site) are logged.
+	void logCaughtError(const StackTraceException& error);
 
 	/// @brief		Synchronously drain every pending trace entry and stop the worker.
 	/// @details	Called at process exit so no error entry is lost, and by the fatal-crash handler BEFORE it exits the

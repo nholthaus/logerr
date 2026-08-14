@@ -55,6 +55,7 @@
 #include <LogStream.h>
 #include <StackTraceException.h>
 #include <StackTraceSIGSEGV.h>
+#include <asyncTraceLog.h>
 #include <appinfo.h>
 #include <logerr>
 #include <sigtermHandler.h>
@@ -111,7 +112,8 @@
 	}                                                                                               \
 	catch (logerr::exception & e)                                                                   \
 	{                                                                                               \
-		LOGERR << e.what() << std::endl;                                                            \
+		logerr::logCaughtError(e);                                                                  \
+		logerr::flushTracedErrors();                                                                \
 		LOGINFO << APPINFO::name() << " exiting due to fatal error..." << std::endl;                \
 		code = 2;                                                                                   \
 	}                                                                                               \

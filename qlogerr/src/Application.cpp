@@ -39,8 +39,12 @@ bool Application::notify(QObject* object, QEvent* event)
 	}
 	catch (const logerr::exception& e)
 	{
-		if(!e.fatal())
-			LOGERR << e.what() << std::endl;
+		// The exception already captured its own throw-site stack. Log the CLEAN message as the [ERROR] headline and that
+		// throw-site trace as the deduped footer via the shared path - NOT `LOGERR << e.what()`, which would bury the
+		// message under e.what()'s fat blob and append the useless catch-site (notify) stack. A fatal exception is
+		// rethrown to be logged by the terminal handler, so it is not double-logged here.
+		if (!e.fatal())
+			logerr::logCaughtError(e);
 
 		ExceptionDialog dialog(e, e.fatal());
 		dialog.exec();
@@ -50,6 +54,11 @@ bool Application::notify(QObject* object, QEvent* event)
 	}
 	catch (const std::exception& e)
 	{
+		// A plain std::exception carries no logerr throw-site capture, so LOGERR here (which captures the catch-site
+		// stack) is the correct source of a trace - the invariant still holds: a message headline + a deduped trace
+		// footer. Without this the log had NO record of a caught std::exception, only the dialog.
+		LOGERR << e.what() << std::endl;
+
 		ExceptionDialog dialog(e, true);
 		dialog.exec();
 
@@ -57,6 +66,8 @@ bool Application::notify(QObject* object, QEvent* event)
 	}
 	catch (...)
 	{
+		// An unknown exception likewise has no throw-site capture; LOGERR gives it the catch-site trace and honors the
+		// invariant (message + deduped trace footer).
 		auto error = "Unhandled exception caught in Application::notify() catch-all block.";
 		LOGERR << error << std::endl;
 		ExceptionDialog dialog(error, true);

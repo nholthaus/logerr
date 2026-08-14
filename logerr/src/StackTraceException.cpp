@@ -106,3 +106,14 @@ bool StackTraceException::fatal() const
 {
 	return m_fatal;
 }
+
+//--------------------------------------------------------------------------------------------------
+//	frames (public )
+//--------------------------------------------------------------------------------------------------
+/// @brief		The throw-site return addresses captured when the exception was constructed.
+/// @return		the exception's own throw-site frames (m_trace's captured addresses), for the shared caught-error log path.
+//--------------------------------------------------------------------------------------------------
+const std::vector<void*>& StackTraceException::frames() const noexcept
+{
+	return m_trace.frames();
+}

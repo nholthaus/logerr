@@ -28,8 +28,11 @@
 #include <asyncTraceLog.h>
 
 #include <StackTrace.h>
+#include <StackTraceException.h>
+#include <appinfo.h>
 #include <concurrent_queue.h>
 #include <logerrThread.h>
+#include <timestampLite.h>
 
 #include <atomic>
 #include <condition_variable>
@@ -38,6 +41,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -316,6 +320,25 @@ namespace logerr
 		}
 		const std::lock_guard<std::mutex> lock(g_workerMutex);
 		worker().enqueue(std::move(entry));
+	}
+
+	//----------------------------------------------------------------------------------------------------------------------
+	//      FUNCTION: logCaughtError [public]
+	//----------------------------------------------------------------------------------------------------------------------
+	/// @brief		Log a caught StackTraceException with the same message-first, deduped-trace-footer contract as LOGERR.
+	/// @param[in]	error	the caught exception whose errorMessage() (clean headline) and frames() (throw site) are logged.
+	/// @details	Builds the byte-for-byte lead-in TracingErrorLine emits - "[<ts>] [<APPINFO::name()>] [ERROR]    ", no
+	///				source location on the line - then hands the exception's clean message and its OWN throw-site frames to
+	///				the shared async pipeline with deduplication ON. Routing here rather than through LOGERR is deliberate:
+	///				LOGERR would recapture the catch-site stack and dedup on it; the exception already holds the useful
+	///				throw-site stack, so the footer traces where the error was raised, and an identical repeated throw
+	///				collapses to message-only just as an identical LOGERR site does.
+	//----------------------------------------------------------------------------------------------------------------------
+	void logCaughtError(const StackTraceException& error)
+	{
+		std::ostringstream prefix;
+		prefix << '[' << TimestampLite() << "] [" << APPINFO::name() << "] [ERROR]    ";
+		enqueueTracedError(prefix.str(), error.errorMessage(), error.frames(), /*deduplicateByStack*/ true);
 	}
 
 	//----------------------------------------------------------------------------------------------------------------------

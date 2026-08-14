@@ -28,6 +28,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 using namespace std::chrono_literals;
@@ -540,14 +541,25 @@ TEST_F(LogerrCoreFixture, ErrorLoggingAddsSourceContextAndOptionalTrace)
 	const std::string output = captured.str();
 	EXPECT_NE(output.find("[ERROR]"), std::string::npos);
 	EXPECT_NE(output.find("[WARNING]"), std::string::npos);
-	EXPECT_NE(output.find("test_logerr.cpp:" + std::to_string(errorLine)), std::string::npos);
+	// The ERROR line LEADS with the message; the source location is NOT on the message line - it is the trace footer
+	// (frame addresses, "0x...") which follows the message. So the message text comes BEFORE its trace in the output.
+	// (The trace's resolved file/function is symbolizer-dependent - an inlined caller may not even name test_logerr.cpp -
+	// so the contract asserted here is only "message leads, trace follows", not a specific resolved filename.)
+	const std::size_t errMsgPos   = output.find("ordinary diagnostic");
+	const std::size_t errTracePos = output.find("0x", errMsgPos);
+	EXPECT_NE(errMsgPos, std::string::npos);
+	EXPECT_NE(errTracePos, std::string::npos) << "the ERROR carries a trace footer after its message";
+	EXPECT_LT(errMsgPos, errTracePos) << "the message must LEAD; the trace follows it";
+	// LOGWARNING still carries file:line on its own line (it is not routed through the traced/message-first path).
 	EXPECT_NE(output.find("test_logerr.cpp:" + std::to_string(warningLine)), std::string::npos);
-	EXPECT_NE(output.find("test_logerr.cpp:" + std::to_string(traceLine)), std::string::npos);
-	EXPECT_NE(output.find("ErrorLoggingAddsSourceContextAndOptionalTrace"), std::string::npos);
+	// LOGERR_TRACE appends a full trace (hex frames) after its message.
+	EXPECT_NE(output.find("0x", output.find("traced diagnostic")), std::string::npos);
 	EXPECT_NE(output.find("ordinary diagnostic"), std::string::npos);
 	EXPECT_NE(output.find("warning diagnostic"), std::string::npos);
 	EXPECT_NE(output.find("traced diagnostic\n"), std::string::npos);
 	EXPECT_NE(output.find("0x"), std::string::npos);
+	static_cast<void>(errorLine);
+	static_cast<void>(traceLine);
 }
 
 TEST_F(LogerrCoreFixture, TimestampFormattingIsSafeUnderConcurrency)
@@ -670,6 +682,63 @@ namespace
 			flags.push_back(captureSuppressed() ? 1 : 0);
 		return flags;
 	}
+
+	// Throw-then-catch a logerr::exception and log it through the SHARED caught-error path, from ONE call instruction
+	// (the loop in logCaughtExceptionSequence below) so every occurrence records the byte-identical throw-site stack.
+	// Kept out of line + non-tail (the volatile sink) so this is a real, stable frame the two occurrences share, exactly
+	// like captureSuppressed()'s pattern - the compiler-robust way to produce genuinely identical stacks.
+	LOGERR_TEST_NOINLINE void throwAndLogCaught(const char* message)
+	{
+		try
+		{
+			ERR(message);
+		}
+		catch (const logerr::exception& e)
+		{
+			logerr::logCaughtError(e);
+		}
+		g_pathSink += 1;
+	}
+
+	// Drive throwAndLogCaught() `count` times from ONE call instruction (this loop), so each caught exception is thrown
+	// from the identical stack: the first logs its throw-site trace footer, every identical repeat is message-only.
+	LOGERR_TEST_NOINLINE void logCaughtExceptionSequence(const char* message, int count)
+	{
+		for (int i = 0; i < count; ++i)
+			throwAndLogCaught(message);
+	}
+
+	// A logerr::exception thrown from an out-of-line frame so its captured throw-site stack resolves to a real function.
+	LOGERR_TEST_NOINLINE logerr::exception makeThrownException(const char* message)
+	{
+		try
+		{
+			ERR(message);
+		}
+		catch (const logerr::exception& e)
+		{
+			return e;
+		}
+		return logerr::exception(message, "unreachable", "unreachable", 0);
+	}
+
+	// Capture ONE deduplicated trace and report whether it was suppressed AND how many frames it retained. Driven from a
+	// single call instruction (the loop in captureDedupFrameSequence) so every capture sees the byte-identical stack: the
+	// first is content, every identical repeat is suppressed. A suppressed trace must STILL retain its frames.
+	LOGERR_TEST_NOINLINE std::pair<bool, std::size_t> captureSuppressedWithFrames()
+	{
+		const StackTrace trace(1, /*deduplicateByStack*/ true);
+		g_pathSink += trace.suppressed() ? 1 : 0;
+		return {trace.suppressed(), trace.frames().size()};
+	}
+	LOGERR_TEST_NOINLINE std::vector<std::pair<bool, std::size_t>> captureDedupFrameSequence(int count)
+	{
+		std::vector<std::pair<bool, std::size_t>> results;
+		results.reserve(static_cast<std::size_t>(count));
+		for (int i = 0; i < count; ++i)
+			results.push_back(captureSuppressedWithFrames());
+		return results;
+	}
 }
 
 TEST_F(LogerrCoreFixture, LogErrAlwaysCarriesAStackTraceOnAFreshStack)
@@ -780,7 +849,107 @@ TEST_F(LogerrCoreFixture, LogErrPreservesTheStreamedMessageAndManipulators)
 	const std::string output = capture.str();
 	EXPECT_NE(output.find("count=42 ratio=3.5 flag=1"), std::string::npos);
 	EXPECT_NE(output.find("second"), std::string::npos);
-	EXPECT_NE(output.find("LogErrPreservesTheStreamedMessageAndManipulators"), std::string::npos) << "function context is present";
+	// The message LEADS the line; its trace footer (hex frames) follows. The resolved file/function in the trace is
+	// symbolizer-dependent (an inlined caller may not name test_logerr.cpp), so the pinned contract is only that the
+	// message comes first and a trace follows it - the location is no longer shoved onto the message line.
+	const std::size_t msgPos   = output.find("count=42 ratio=3.5 flag=1");
+	const std::size_t tracePos = output.find("0x", msgPos);
+	ASSERT_NE(msgPos, std::string::npos);
+	EXPECT_NE(tracePos, std::string::npos) << "the message carries a trace footer after it";
+	EXPECT_LT(msgPos, tracePos) << "the message leads; the trace follows";
+}
+
+TEST_F(LogerrCoreFixture, CapturedTraceRetainsItsRawFrames)
+{
+	// A trace must RETAIN the raw return addresses it captured (and symbolized), so a caller can re-symbolize or
+	// re-deduplicate the identical stack elsewhere - the mechanism the caught-exception log path relies on. frames() is
+	// non-empty for a real capture, and re-symbolizing exactly those retained frames reproduces the same footer the
+	// trace already formatted (so the retained set IS the set that was symbolized).
+	StackTrace::resetDeduplication();
+	const StackTrace trace(0);
+	EXPECT_FALSE(trace.frames().empty()) << "a captured trace retains its addresses";
+	const std::string reFormatted = StackTrace::formatFrames(trace.frames().data(), static_cast<int>(trace.frames().size()));
+	EXPECT_EQ(reFormatted, static_cast<std::string>(trace)) << "frames() are exactly what the trace symbolized";
+	// Every retained frame that resolved carries the address column the formatter emits.
+	EXPECT_NE(reFormatted.find("0x"), std::string::npos);
+}
+
+TEST_F(LogerrCoreFixture, SuppressedDuplicateTraceStillRetainsItsFrames)
+{
+	// A trace collapsed as a duplicate stack (empty formatted value) must STILL retain its frames, so a caller can
+	// re-run the dedup gate / inspect the identical stack on the repeat rather than losing it. Drive the SAME capture
+	// call site repeatedly (one call instruction) so the second+ occurrences are genuine byte-identical duplicates: the
+	// first is content, the rest are suppressed - and EVERY one, suppressed or not, retains a non-empty frame set.
+	logerr::resetTracedSites();
+	const std::vector<std::pair<bool, std::size_t>> results = captureDedupFrameSequence(3);
+	ASSERT_EQ(results.size(), 3U);
+	EXPECT_FALSE(results[0].first) << "the first occurrence of the stack is content, not suppressed";
+	EXPECT_TRUE(results[1].first) << "an identical repeat is suppressed";
+	EXPECT_TRUE(results[2].first) << "and stays suppressed";
+	for (const auto& [suppressed, frameCount] : results)
+		EXPECT_GT(frameCount, 0U) << "a trace retains its frames whether or not it was suppressed as a duplicate";
+}
+
+TEST_F(LogerrCoreFixture, StackTraceExceptionExposesItsThrowSiteFrames)
+{
+	// The exception captures its OWN throw-site stack at construction; frames() exposes it (NOT the catch-site stack),
+	// and errorMessage() is the CLEAN message with no file/function/line/trace blob.
+	const logerr::exception thrown = makeThrownException("throw-site probe");
+	EXPECT_EQ(thrown.errorMessage(), "throw-site probe") << "errorMessage() is the clean headline, no blob";
+	EXPECT_FALSE(thrown.frames().empty()) << "the exception retains its throw-site frames";
+	const std::string footer = StackTrace::formatFrames(thrown.frames().data(), static_cast<int>(thrown.frames().size()));
+	EXPECT_NE(footer.find("0x"), std::string::npos) << "the throw-site frames symbolize to a real footer";
+}
+
+TEST_F(LogerrCoreFixture, CaughtExceptionLogsMessageFirstThenItsThrowSiteTraceFooter)
+{
+	// The invariant for a caught logerr::exception: the CLEAN message leads the [ERROR] line, and the exception's OWN
+	// throw-site trace follows as the footer - identical shape to LOGERR, but keyed on the throw stack, not the catch.
+	logerr::resetTracedSites();
+	CoutCapture capture;
+
+	throwAndLogCaught("caught-once failure");
+
+	logerr::flushTracedErrors();
+	const std::string output = capture.str();
+	EXPECT_NE(output.find("[ERROR]"), std::string::npos);
+	// The first three bracketed fields are intact and the message leads (the dock stays parseable).
+	const std::size_t msgPos   = output.find("caught-once failure");
+	const std::size_t tracePos = output.find("0x", msgPos);
+	ASSERT_NE(msgPos, std::string::npos) << "the clean message is present";
+	EXPECT_NE(tracePos, std::string::npos) << "a throw-site trace footer follows the message";
+	EXPECT_LT(msgPos, tracePos) << "the message LEADS; the trace follows - same contract as LOGERR";
+	// The clean message is NOT buried under e.what()'s blob: the location "in `...` at `...`" text e.what() emits must
+	// not precede the message on the line.
+	EXPECT_EQ(output.find("STACK TRACE:"), std::string::npos) << "e.what()'s fat blob is not logged; only the clean message";
+}
+
+TEST_F(LogerrCoreFixture, CaughtExceptionDeduplicatesByThrowSiteStack)
+{
+	// Logging the SAME throw-site stack twice: the first carries a footer, the identical repeat is message-only - the
+	// exact deduplication LOGERR applies, but on the throw-site stack the exception captured.
+	logerr::resetTracedSites();
+	CoutCapture capture;
+
+	logCaughtExceptionSequence("recurring caught failure", 3);
+
+	logerr::flushTracedErrors();
+	const std::string output = capture.str();
+	EXPECT_EQ(occurrences(output, "recurring caught failure"), 3U) << "every caught occurrence logs its message";
+	// Exactly one throw-site footer across three identical-stack repeats: between the 1st and 2nd message there is a
+	// trace, but between the 2nd and 3rd there is none.
+	const std::size_t firstMsg  = output.find("recurring caught failure");
+	ASSERT_NE(firstMsg, std::string::npos);
+	const std::size_t secondMsg = output.find("recurring caught failure", firstMsg + 1);
+	const std::size_t thirdMsg  = output.find("recurring caught failure", secondMsg + 1);
+	ASSERT_NE(secondMsg, std::string::npos);
+	ASSERT_NE(thirdMsg, std::string::npos);
+	const std::size_t traceAfterFirst = output.find("0x", firstMsg);
+	EXPECT_NE(traceAfterFirst, std::string::npos) << "the first caught occurrence traces";
+	EXPECT_LT(traceAfterFirst, secondMsg) << "the trace follows the first message and precedes the second";
+	const std::size_t traceAfterSecond = output.find("0x", secondMsg + 1);
+	EXPECT_TRUE(traceAfterSecond == std::string::npos || traceAfterSecond > thirdMsg)
+	    << "an identical repeated throw stack must not re-emit the trace - message-only, exactly like LOGERR";
 }
 
 TEST_F(LogerrCoreFixture, StackDeduplicationIsThreadSafe)

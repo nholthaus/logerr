@@ -37,6 +37,7 @@
 //------------------------------
 
 #include <string>
+#include <vector>
 
 //	----------------------------------------------------------------------------
 //	CLASS		stackTrace
@@ -83,6 +84,15 @@ public:
 	[[nodiscard]] bool suppressed() const noexcept;
 
 	/**
+	 * @brief		The raw return addresses this trace captured, in innermost-first order.
+	 * @returns		The captured frames, already adjusted for the `ignore` skip applied at construction (the exact array
+	 *				that was symbolized). Retained even when the trace was suppressed as a duplicate, so a caller can
+	 *				re-symbolize or re-deduplicate the identical stack elsewhere (the caught-exception log path re-uses a
+	 *				thrown exception's own throw-site frames instead of recapturing the catch-site stack).
+	 */
+	[[nodiscard]] const std::vector<void*>& frames() const noexcept;
+
+	/**
 	 * @brief		Stack trace string
 	 * @returns		The results of the stack trace as a QString
 	*/
@@ -122,7 +132,8 @@ public:
 private:
 	static const size_t MAX_FRAMES = 256;    ///< Arbitrary.
 
-	std::string m_value;
-	bool        m_suppressed = false;    ///< true when deduplicateByStack collapsed this trace as a repeat stack.
+	std::string        m_value;
+	bool               m_suppressed = false;    ///< true when deduplicateByStack collapsed this trace as a repeat stack.
+	std::vector<void*> m_frames;                ///< the post-skip return addresses captured (and symbolized) for this trace.
 };
 #endif    // stackTrace_h_

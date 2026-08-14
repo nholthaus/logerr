@@ -161,17 +161,24 @@ namespace logerr
 		/// @param tag  the subsystem/app tag shown in the [tag] field; defaults to APPINFO::name(). A module-scoped
 		///             consumer (a per-subsystem logger) passes its own tag here and inherits the identical traced,
 		///             deduplicated behavior instead of forking the macro.
-		explicit TracingErrorLine(const char* file, const char* /*fileKey*/, std::uint32_t line, const char* function,
-		                          const std::string& tag = APPINFO::name())
+		explicit TracingErrorLine(const char* /*file*/, const char* /*fileKey*/, std::uint32_t /*line*/,
+		                          const char* /*function*/, const std::string& tag = APPINFO::name())
 		{
-			m_prefix << '[' << TimestampLite() << "] [" << tag << "] [ERROR]    [" << file << ':' << line
-			         << ' ' << function << "]  ";
+			// The line LEADS with the message: [ts] [tag] [ERROR] <message>. The source location (file:line) and the
+			// function signature are NOT on this line - they are the trace footer's frame 0, which is exactly this call
+			// site. Keeping the fat function signature off the headline means the actual error text is what the reader
+			// sees first, not a __FUNCSIG__ shoved ahead of it. A deduplicated repeat (no footer) is just the message,
+			// which is self-describing. The file/line/function parameters are retained for API/source-compatibility with
+			// every existing LOGERR call site but are intentionally not rendered here.
+			m_prefix << '[' << TimestampLite() << "] [" << tag << "] [ERROR]    ";
 		}
 		~TracingErrorLine()
 		{
 			// Capture the raw return addresses on THIS (logging) thread and defer the expensive symbolization to the
-			// worker. Skip one innermost frame - this destructor - so the first displayed frame is the caller of LOGERR.
-			logerr::enqueueTracedError(m_prefix.str(), m_message.str(), captureCallStack(1), /*deduplicateByStack*/ true);
+			// worker. Skip the two innermost frames - captureCallStack itself and this destructor - so the FIRST displayed
+			// trace frame (#0) is the LOGERR call site, not a logerr-internal frame. Since the location no longer appears
+			// on the message line, frame 0 IS the locator; it must be the user's site.
+			logerr::enqueueTracedError(m_prefix.str(), m_message.str(), captureCallStack(2), /*deduplicateByStack*/ true);
 		}
 		template<typename T>
 		TracingErrorLine& operator<<(const T& value)
