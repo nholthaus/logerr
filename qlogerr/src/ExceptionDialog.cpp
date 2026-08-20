@@ -8,14 +8,19 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QGuiApplication>
 #include <QFontDatabase>
 #include <QFontMetrics>
 #include <QGroupBox>
 #include <QLabel>
 #include <QPushButton>
+#include <QScreen>
 #include <QScrollBar>
+#include <QShowEvent>
 #include <QStyle>
 #include <QVBoxLayout>
+
+#include <algorithm>
 #include <utility>
 
 //--------------------------------------------------------------------------------------------------
@@ -190,6 +195,18 @@ void ExceptionDialog::setupUI()
 
 	m_errorLayout->addWidget(m_errorMessageLabel);
 	m_errorMessageLabel->setFont(monospaceFont);
+	// WRAP the summary message so a long single-line error (e.g. a full plain-language reason + appended raw detail)
+	// reflows to several readable lines instead of growing the (QSizePolicy::Fixed) dialog WIDER than the display -
+	// the off-screen bug on RDP. The message WRAPS but never SCROLLS (it grows tall as needed); the long, truly
+	// unbounded content lives in the collapsible details browser below, which is the one that scrolls.
+	m_errorMessageLabel->setWordWrap(true);
+	// Cap the wrap column to a screen-relative width so the dialog stays on-screen on a small/RDP display and does not
+	// stretch to the full width of an un-wrapped one-liner. Half the available screen width, floored/ceiled to a sane
+	// band, is a comfortable reading measure and leaves room for the icon + margins.
+	const QScreen* screen        = QGuiApplication::primaryScreen();
+	const int      availW        = screen ? screen->availableGeometry().width() : 1280;
+	const int      messageMaxW   = std::clamp(availW / 2, 360, 900);
+	m_errorMessageLabel->setMaximumWidth(messageMaxW);
 	m_errorLayout->addSpacerItem(new QSpacerItem(0, 0, QSizePolicy::MinimumExpanding, QSizePolicy::Maximum));
 
 	m_detailsGroupBox->setLayout(m_detailsGroupBoxLayout);
@@ -238,6 +255,29 @@ void ExceptionDialog::setupUI()
 //	DESTRUCTOR
 //--------------------------------------------------------------------------------------------------
 ExceptionDialog::~ExceptionDialog() = default;
+
+//--------------------------------------------------------------------------------------------------
+//	showEvent (protected ) []
+//--------------------------------------------------------------------------------------------------
+void ExceptionDialog::showEvent(QShowEvent* event)
+{
+	QDialog::showEvent(event);
+	// Belt-and-suspenders to the width cap: if the dialog still lands off the display (a small/RDP screen, or a
+	// centered wide dialog whose right edge overhangs), nudge it back on-screen HORIZONTALLY only - shift left so the
+	// right edge fits, then keep the left edge visible. The VERTICAL position is left untouched (per the fix scope).
+	const QScreen* screen = this->screen() ? this->screen() : QGuiApplication::primaryScreen();
+	if (!screen)
+		return;
+	const QRect avail = screen->availableGeometry();
+	QRect       frame = frameGeometry();
+	int         x     = frame.x();
+	if (frame.right() > avail.right())
+		x -= (frame.right() - avail.right());    // pull left so the right edge sits inside the screen
+	if (x < avail.left())
+		x = avail.left();                          // but never past the left edge (a dialog wider than the screen pins left)
+	if (x != frame.x())
+		move(x, frame.y());                        // horizontal only - y unchanged
+}
 
 //--------------------------------------------------------------------------------------------------
 //	on_pbCopy_clicked (public ) []

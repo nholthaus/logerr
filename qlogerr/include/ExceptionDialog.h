@@ -87,6 +87,9 @@ public:
 
 	~ExceptionDialog() override;
 
+protected:
+	void showEvent(QShowEvent* event) override;    ///< clamp the dialog back on-screen HORIZONTALLY if it lands off the display
+
 private slots:
 
 	void on_pbCopy_clicked() const;
