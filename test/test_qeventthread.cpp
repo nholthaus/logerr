@@ -23,10 +23,13 @@
 #include <QClipboard>
 #include <QEventLoop>
 #include <QGroupBox>
+#include <QGuiApplication>
+#include <QLabel>
 #include <QLineEdit>
 #include <QNetworkDatagram>
 #include <QObject>
 #include <QPushButton>
+#include <QScreen>
 #include <QSettings>
 #include <QSignalSpy>
 #include <QStandardPaths>
@@ -924,6 +927,41 @@ TEST_F(QtWidgetFixture, ExceptionDialogConstructorsButtonsClipboardAndSizingWork
 	browser.setPlainText(QStringLiteral("a reasonably wide line"));
 	EXPECT_EQ(browser.minimumSizeHint(), browser.sizeHint());
 	EXPECT_GT(browser.sizeHint().width(), 30);
+}
+
+TEST_F(QtWidgetFixture, ExceptionDialogMessageWrapsAndDialogStaysOnScreenHorizontally)
+{
+	// A single long line with no spaces to break on - the worst case for the pre-#652 unwrapped label, which grew the
+	// fixed-size dialog wider than the display (the off-screen bug on a small/RDP screen).
+	const QString longMessage = QStringLiteral(
+		"An unrecoverable configuration error occurred while loading the manifest and Helen could not build the fleet. ")
+		+ QString(600, QLatin1Char('x'));
+	ExceptionDialog dialog(longMessage, QStringLiteral("details"), false);
+
+	// The summary label word-wraps and is width-capped so it never stretches the dialog past a screen-relative measure.
+	QLabel* message = nullptr;
+	for (auto* label : dialog.findChildren<QLabel*>())
+		if (label->text().startsWith("FATAL ERROR: ") || label->text().startsWith("ERROR: "))
+		{
+			message = label;
+			break;
+		}
+	ASSERT_NE(message, nullptr);
+	EXPECT_TRUE(message->wordWrap());
+	EXPECT_GT(message->maximumWidth(), 0);
+	EXPECT_LT(message->maximumWidth(), QWIDGETSIZE_MAX);
+
+	// After showing, the dialog frame sits within the screen HORIZONTALLY (the showEvent clamp), so the message is
+	// readable rather than clipped off the right edge. The vertical position is not asserted (the fix is horizontal-only).
+	dialog.show();
+	ASSERT_TRUE(QTest::qWaitForWindowExposed(&dialog));
+	const QScreen* screen = dialog.screen() ? dialog.screen() : QGuiApplication::primaryScreen();
+	ASSERT_NE(screen, nullptr);
+	const QRect avail = screen->availableGeometry();
+	const QRect frame = dialog.frameGeometry();
+	EXPECT_LE(frame.left(), avail.right());       // the dialog is not pushed entirely off the right edge
+	EXPECT_GE(frame.left(), avail.left());        // and its left edge is on-screen
+	dialog.close();
 }
 
 TEST_F(LogerrTest, LogReceiverEmitsEveryPendingLocalDatagram)
