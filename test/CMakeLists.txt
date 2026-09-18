@@ -28,6 +28,16 @@ add_executable(logerrCoreTests test_logerr.cpp)
 target_link_libraries(logerrCoreTests PRIVATE logerr::logerr GTest::gtest_main)
 logerr_enable_project_warnings(logerrCoreTests)
 
+if(NOT WIN32)
+    # A module the symbolizer tests load after their first trace; see test_module.cpp for why it is built rather than
+    # borrowed from the system.
+    add_library(logerrTestModule MODULE test_module.cpp)
+    logerr_enable_project_warnings(logerrTestModule)
+    add_dependencies(logerrCoreTests logerrTestModule)
+    target_link_libraries(logerrCoreTests PRIVATE ${CMAKE_DL_LIBS})
+    target_compile_definitions(logerrCoreTests PRIVATE LOGERR_TEST_MODULE_PATH="$<TARGET_FILE:logerrTestModule>")
+endif()
+
 if(BUILD_WITH_QT)
     get_target_property(qlogerr_interface_definitions qlogerr INTERFACE_COMPILE_DEFINITIONS)
     if(qlogerr_interface_definitions MATCHES "AUTO_DOWNLOAD|BUILD_WITH_QT|USE_OLD_BFD|WINDOWS|_CRT_SECURE_NO_WARNINGS")

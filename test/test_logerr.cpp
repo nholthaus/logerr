@@ -15,11 +15,19 @@
 
 #include <gtest/gtest.h>
 
+#if !defined(_WIN32)
+#include <dlfcn.h>
+#include <sys/auxv.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
 #include <algorithm>
 #include <atomic>
 #include <barrier>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -1216,3 +1224,170 @@ TEST_F(LogerrCoreFixture, SymbolizationStaysSafeAfterFlushingTheWorker)
 		EXPECT_NE(output.find("0x"), std::string::npos) << "and still carries its trace";
 	}
 }
+
+#if !defined(_WIN32)
+// --- Symbolizer suite (libdw) ------------------------------------------------------------------------------------------
+// The Linux symbolizer resolves addresses with libdw. These guard what a differential run against the libbfd
+// implementation it replaced showed could silently change: a lambda frame losing the file and line that make it
+// diagnosable at all, an address with no line information borrowing an unrelated one, a module whose debug info is not
+// installed sending the symbolizer to the network, and a stale module list after a fork or a dlopen.
+
+// A lambda whose body is a distinct source line, invoked through a function pointer so it is a real frame.
+LOGERR_TEST_NOINLINE static std::vector<void*> captureInsideALambda()
+{
+	std::vector<void*> frames;
+	const auto         capture = [&frames]() LOGERR_TEST_NOINLINE
+	{ frames = logerr::captureCallStack(0); };
+	capture();
+	return frames;
+}
+
+TEST_F(LogerrCoreFixture, ALambdaFrameCarriesItsFileAndLine)
+{
+	// logerr exists to make an error inside a worker's signal-slot lambda diagnosable, so the lambda's own frame must
+	// name a file and a line. A lambda's operator() hangs off its closure class in DWARF, which carries no pc range, so
+	// a symbolizer that looks for the enclosing function by range alone finds nothing and drops the source location -
+	// leaving "??:0" on precisely the frame that matters.
+	const std::vector<void*> frames = captureInsideALambda();
+	ASSERT_FALSE(frames.empty());
+
+	const std::string trace = StackTrace::formatFrames(frames.data(), static_cast<int>(frames.size()));
+	ASSERT_FALSE(trace.empty());
+
+	// The assertion has to be made about the LAMBDA's OWN line of the footer. Asking whether the whole trace mentions
+	// this file passes on the strength of the neighbouring frames even when the lambda's own line reads "??:0".
+	std::string        lambdaFrame;
+	std::istringstream footer(trace);
+	for (std::string line; std::getline(footer, line);)
+	{
+		if (line.find("lambda") != std::string::npos)
+		{
+			lambdaFrame = line;
+			break;
+		}
+	}
+
+	ASSERT_FALSE(lambdaFrame.empty()) << "the capture ran inside a lambda, so the footer holds a lambda frame:\n"
+	                                  << trace;
+	// WHICH file the frame names depends on optimization: with the capture helper inlined into the lambda body it is the
+	// header that code came from rather than this file. Having no location at all is the defect.
+	EXPECT_EQ(lambdaFrame.find("??:0"), std::string::npos) << "the lambda frame has a source location:\n"
+	                                                       << lambdaFrame;
+}
+
+TEST_F(LogerrCoreFixture, AnAddressWithNoLineInformationIsNotGivenSomeOtherFunctionsLine)
+{
+	// Asking a symbolizer for the "nearest line" of an address no line table describes answers with whatever line is
+	// nearest in some unrelated compilation unit. That is worse than saying nothing: the frame reads as a real source
+	// location in a file it never executed. Unmapped addresses must come back as "??:0".
+	void* unmapped[] = {reinterpret_cast<void*>(static_cast<std::uintptr_t>(0x10)),
+	                    reinterpret_cast<void*>(static_cast<std::uintptr_t>(0xDEADBEEF))};
+
+	const std::string trace = StackTrace::formatFrames(unmapped, static_cast<int>(std::size(unmapped)));
+	ASSERT_FALSE(trace.empty());
+
+	EXPECT_EQ(occurrences(trace, "??:0"), std::size(unmapped)) << "every unresolvable frame says so plainly:\n"
+	                                                           << trace;
+	EXPECT_EQ(trace.find(".cpp:"), std::string::npos) << "and none of them borrowed a real source line:\n"
+	                                                  << trace;
+	EXPECT_EQ(trace.find(".h:"), std::string::npos) << "and none of them borrowed a real source line:\n"
+	                                                << trace;
+}
+
+TEST_F(LogerrCoreFixture, AFrameInAModuleWithoutDebugInfoKeepsItsPlaceAndLogsNothing)
+{
+	// The vdso is mapped into every process, is a module the symbolizer will find, and carries neither DWARF nor a
+	// separate debug file - the shape of any stripped library a trace can pass through. Three things must hold: the
+	// frames keep their places, so the numbering still lines up with the addresses printed beside them; they are honest
+	// about having no source location; and symbolizing them logs NOTHING. A symbolizer that reports its own trouble
+	// through LOGERR symbolizes its own trace, which replaces the frames that were asked for with its own call stack.
+	const unsigned long vdso = getauxval(AT_SYSINFO_EHDR);
+	if (vdso == 0)
+		GTEST_SKIP() << "this kernel maps no vdso, so the case does not exist here";
+
+	void* frames[] = {reinterpret_cast<void*>(vdso + 0x400), reinterpret_cast<void*>(vdso + 0x800)};
+
+	CoutCapture       capture;
+	const std::string trace  = StackTrace::formatFrames(frames, static_cast<int>(std::size(frames)));
+	const std::string logged = capture.str();
+
+	EXPECT_EQ(occurrences(trace, "??:0"), std::size(frames)) << "both frames are present and honest:\n"
+	                                                         << trace;
+	EXPECT_EQ(trace.find("backtraceSymbols"), std::string::npos)
+	        << "the trace holds the frames asked for, not the symbolizer's own:\n"
+	        << trace;
+	EXPECT_TRUE(logged.empty()) << "symbolizing an unreadable module logged: " << logged;
+}
+
+TEST_F(LogerrCoreFixture, SymbolizationNeverWaitsOnTheNetwork)
+{
+	// elfutils' standard debuginfo lookup ends in a debuginfod query for any module whose debug info is not installed
+	// locally, and blocks for the full connect timeout - 90 seconds by default - with DEBUGINFOD_URLS set, which is the
+	// out-of-the-box state on Ubuntu and Fedora. A symbolizer that stalls the process it is diagnosing is worse than a
+	// slow one. Point the variable at an address that cannot answer and require symbolization to stay prompt.
+	const ScopedEnvironment debuginfodUrls("DEBUGINFOD_URLS", "http://10.255.255.1:8002");
+
+	const std::vector<void*> frames = captureRawFrames();
+	ASSERT_FALSE(frames.empty());
+
+	const auto        started = std::chrono::steady_clock::now();
+	const std::string trace   = StackTrace::formatFrames(frames.data(), static_cast<int>(frames.size()));
+	const auto        elapsed = std::chrono::steady_clock::now() - started;
+
+	EXPECT_FALSE(trace.empty());
+	EXPECT_LT(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count(), 5)
+	        << "symbolization consulted the network instead of degrading to \"??:0\"";
+}
+
+TEST_F(LogerrCoreFixture, AModuleLoadedAfterTheFirstTraceStillResolves)
+{
+	// The module list is read once and kept, so a library loaded later is not on it. A frame in that library must not be
+	// left unresolved: an address in no known module means the list is stale, and it is re-read before giving up.
+	const std::vector<void*> warmUp = captureRawFrames();
+	static_cast<void>(StackTrace::formatFrames(warmUp.data(), static_cast<int>(warmUp.size())));
+
+	void* handle = dlopen(LOGERR_TEST_MODULE_PATH, RTLD_NOW | RTLD_LOCAL);
+	ASSERT_NE(handle, nullptr) << "the module built for this test failed to load: " << dlerror();
+
+	void* const loadedFunction = dlsym(handle, "logerrTestModuleFunction");
+	ASSERT_NE(loadedFunction, nullptr) << dlerror();
+
+	void* const       frames[] = {loadedFunction};
+	const std::string trace    = StackTrace::formatFrames(frames, 1);
+
+	EXPECT_NE(trace.find("logerrTestModuleFunction"), std::string::npos)
+	    << "a frame in a newly loaded module is named, not left unresolved:\n"
+	    << trace;
+
+	dlclose(handle);
+}
+
+TEST_F(LogerrCoreFixture, SymbolizationStillWorksInAForkedChild)
+{
+	// The kept module list belongs to the process it was read from. A forked child inherits it along with everything
+	// else, and its own image may differ, so the child must notice and read its own list rather than resolve against
+	// its parent's.
+	const std::vector<void*> frames = captureRawFrames();
+	ASSERT_FALSE(frames.empty());
+
+	// Symbolize in the parent first, so the child inherits a list that was already read.
+	const std::string parentTrace = StackTrace::formatFrames(frames.data(), static_cast<int>(frames.size()));
+	ASSERT_FALSE(parentTrace.empty());
+
+	const pid_t child = fork();
+	ASSERT_NE(child, -1);
+
+	if (child == 0)
+	{
+		// The child holds its own copy of the parent's footer, and resolves the same frames of the same image, so an
+		// identical footer is the invariant. A module list still describing another process cannot produce one.
+		const std::string childTrace = StackTrace::formatFrames(frames.data(), static_cast<int>(frames.size()));
+		_exit(childTrace == parentTrace ? 0 : 1);
+	}
+
+	int status = 0;
+	ASSERT_EQ(waitpid(child, &status, 0), child);
+	ASSERT_TRUE(WIFEXITED(status)) << "the child neither crashed nor hung while symbolizing";
+	EXPECT_EQ(WEXITSTATUS(status), 0) << "the forked child resolved the same frames as its parent";
+}
+#endif    // !_WIN32
