@@ -259,26 +259,71 @@ public:
 	};
 
 private:
-	/// Invoke a Qt slot with the longest signal-argument prefix it accepts. Qt permits slots to omit trailing signal
-	/// arguments (including QPrivateSignal); the generic guard wrapper must preserve that normal connect behavior.
-	template<size_t Count, typename Slot, typename Tuple>
-	static void invokeCompatible(Slot& slot, Tuple&& arguments)
+	/// A signal's declared argument types as a tuple, so a prefix of them can be selected by index.
+	template<typename ArgumentList>
+	struct SignalArguments;
+	template<typename... Arguments>
+	struct SignalArguments<QtPrivate::List<Arguments...>>
 	{
-		[&]<size_t... Indices>(std::index_sequence<Indices...>) {
-			if constexpr (std::is_invocable_v<
-			                  Slot&, decltype(std::get<Indices>(std::forward<Tuple>(arguments)))...>)
-			{
-				std::invoke(slot, std::get<Indices>(std::forward<Tuple>(arguments))...);
-			}
-			else if constexpr (Count > 0)
-			{
-				invokeCompatible<Count - 1>(slot, std::forward<Tuple>(arguments));
-			}
-			else
-			{
-				static_assert(std::is_invocable_v<Slot&>, "guarded slot is incompatible with the signal arguments");
-			}
-		}(std::make_index_sequence<Count>{});
+		using Tuple = std::tuple<Arguments...>;
+	};
+
+	/// True when @p Slot can be called with the first `Indices...` of a signal's arguments.
+	template<typename Slot, typename Tuple, size_t... Indices>
+	static constexpr bool slotAcceptsPrefix(std::index_sequence<Indices...>)
+	{
+		return std::is_invocable_v<Slot&, std::tuple_element_t<Indices, Tuple>...>;
+	}
+
+	/// The number of a signal's leading arguments @p Slot accepts: the longest prefix it can be called with. Qt permits a
+	/// slot to omit trailing signal arguments, so this is how many the guard wrapper must declare.
+	template<typename Slot, typename Tuple, size_t Count>
+	static constexpr size_t acceptedArgumentCount()
+	{
+		if constexpr (slotAcceptsPrefix<Slot, Tuple>(std::make_index_sequence<Count>{}))
+			return Count;
+		else if constexpr (Count > 0)
+			return acceptedArgumentCount<Slot, Tuple, Count - 1>();
+		else
+			return 0;
+	}
+
+	/// The wrapper a guarded connection hands to Qt: it runs @p Slot inside the worker's exception boundary, and declares
+	/// EXACTLY the arguments the slot accepts.
+	///
+	/// The arity has to be fixed, and this is why it cannot be a generic lambda. Qt narrows a signal's argument list to
+	/// the arity of the functor it is given - that is what lets an ordinary lambda take fewer arguments than the signal
+	/// declares. A variadic generic lambda has no arity to narrow to, so Qt binds EVERY declared argument, including the
+	/// private-signal tag that Qt appends to a class's own signals. That tag has no metatype, so across a queued
+	/// connection the event carries nothing for it and Qt materializes a reference to a null pointer to build the
+	/// parameter pack - undefined behaviour before the slot body runs at all, reported by UBSan as "reference binding to
+	/// null pointer of type 'struct QPrivateSignal'". Declaring the accepted arguments moves the decision to where Qt
+	/// needs it, at compile time.
+	template<typename Slot, typename... Arguments>
+	class GuardedSlot
+	{
+	public:
+		GuardedSlot(QEventThread* owner, Slot slot)
+		    : m_owner(owner)
+		    , m_slot(std::move(slot))
+		{
+		}
+
+		void operator()(Arguments... arguments) noexcept
+		{
+			m_owner->runGuarded([&] { std::invoke(m_slot, arguments...); });
+		}
+
+	private:
+		QEventThread* m_owner;
+		Slot          m_slot;
+	};
+
+	/// Build the wrapper for the first `Indices...` of the signal's arguments.
+	template<typename Slot, typename Tuple, size_t... Indices>
+	static auto makeGuardedSlot(QEventThread* owner, Slot&& slot, std::index_sequence<Indices...>)
+	{
+		return GuardedSlot<std::decay_t<Slot>, std::tuple_element_t<Indices, Tuple>...>(owner, std::forward<Slot>(slot));
 	}
 
 	//------------------------------------------------------------------------------------------------------------------
@@ -300,14 +345,19 @@ private:
 		{
 			Q_ASSERT(m_owner->m_loop);
 			Q_ASSERT(QThread::currentThread() == m_owner->m_loop->thread());
-			return QObject::connect(
-			    sender, signal, m_owner->m_loop,
-			    [owner = m_owner, slot = std::forward<Slot>(slot)](auto&&... args) mutable noexcept {
-				    owner->runGuarded([&] {
-					    auto arguments = std::forward_as_tuple(std::forward<decltype(args)>(args)...);
-					    owner->template invokeCompatible<sizeof...(args)>(slot, std::move(arguments));
-				    });
-			    });
+
+			using Arguments = typename QEventThread::template SignalArguments<
+			    typename QtPrivate::FunctionPointer<Signal>::Arguments>::Tuple;
+
+			constexpr size_t accepted =
+			    QEventThread::template acceptedArgumentCount<std::decay_t<Slot>, Arguments, std::tuple_size_v<Arguments>>();
+
+			static_assert(QEventThread::template slotAcceptsPrefix<std::decay_t<Slot>, Arguments>(std::make_index_sequence<accepted>{}),
+			              "guarded slot is incompatible with the signal arguments");
+
+			return QObject::connect(sender, signal, m_owner->m_loop,
+			                        QEventThread::template makeGuardedSlot<Slot, Arguments>(
+			                            m_owner, std::forward<Slot>(slot), std::make_index_sequence<accepted>{}));
 		}
 	private:
 		QEventThread* m_owner;
