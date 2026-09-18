@@ -26,13 +26,8 @@ set(logerr_sources
     "${CMAKE_CURRENT_BINARY_DIR}/appinfo.cpp")
 
 if(NOT WIN32)
-    find_package(Bfd REQUIRED)
+    find_package(Dw REQUIRED)
     list(APPEND logerr_sources src/backtraceSymbols.cpp)
-
-    include(CheckCXXSymbolExists)
-    set(CMAKE_REQUIRED_INCLUDES "${LIBBFD_INCLUDE_DIRS}")
-    check_cxx_symbol_exists(bfd_section_flags "bfd.h" LOGERR_HAS_BFD_SECTION_FLAGS)
-    unset(CMAKE_REQUIRED_INCLUDES)
 endif()
 
 configure_file(appinfo.cpp.in appinfo.cpp @ONLY NEWLINE_STYLE UNIX)
@@ -57,10 +52,7 @@ if(WIN32)
     target_compile_definitions(logerr PRIVATE WINDOWS _CRT_SECURE_NO_WARNINGS)
     target_link_libraries(logerr PRIVATE wsock32 ws2_32)
 else()
-    target_link_libraries(logerr PRIVATE Bfd::Bfd)
-    if(NOT LOGERR_HAS_BFD_SECTION_FLAGS)
-        target_compile_definitions(logerr PRIVATE USE_OLD_BFD)
-    endif()
+    target_link_libraries(logerr PRIVATE Dw::Dw)
 endif()
 
 if(BUILD_WITH_QT)

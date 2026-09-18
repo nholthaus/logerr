@@ -10,8 +10,8 @@ A simple, portable, logging and error handling system. Logerr features:
 
 ## Build
 
-Logerr requires CMake 3.25 or newer and a C++23 compiler. On Linux, stack traces also require the binutils development
-libraries (`binutils-dev` and `libiberty-dev` on Debian/Ubuntu).
+Logerr requires CMake 3.25 or newer and a C++23 compiler. On Linux, stack traces also require the elfutils development
+library (`libdw-dev` on Debian/Ubuntu, `elfutils-devel` on Fedora/RHEL/Rocky).
 
 Logerr comes in two varieties: a standard C++ library and a Qt 6 integration library.
 
